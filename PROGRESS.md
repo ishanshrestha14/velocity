@@ -13,16 +13,17 @@ Nothing gets deferred without landing in that table.
 |---|---|---|
 | 1 | Project Foundation | ✅ Complete |
 | 2 | Local Persistence + Domain Models | ✅ Complete |
-| 3 | Git Engine | ⬜ Not started |
+| 3 | Git Engine | ✅ Complete |
 | 4 | Scoring Engine + Quick Log | ⬜ Not started |
 | 5 | Dashboard + Swift Charts | ⬜ Not started |
 | 6 | Repository Automation | ⬜ Not started |
 | 7 | Native macOS Polish | ⬜ Not started |
 | 8 | Reliability, Packaging & Release | ⬜ Not started |
 
-Current state: the app runs from the menu bar, opens a dashboard and a settings
-window, and keeps its state in local JSON across restarts. It has no Git
-integration and no way to add work yet, so in practice the feed is always empty.
+Current state: the app runs from the menu bar, keeps its state in local JSON
+across restarts, and can read commits out of configured Git repositories. Those
+commits are found but not yet scored, so the feed is still empty — the scoring
+engine that turns a commit into points is the next phase.
 
 ## Verifying
 
@@ -104,6 +105,47 @@ Support, is readable JSON, deletion persists, nothing leaves the machine.
   but `.default` is documented thread-safe for the operations used here, and the
   synchronous quit path needs to reach it.
 
+## Phase 3 — Git Engine ✅
+
+`GitRunner`, `GitRepositoryValidator`, `GitCommitParser`, and `GitScanner`, plus
+repository management in Settings and a Scan action in the menu bar.
+
+All six acceptance criteria met, verified against this repository as a live
+subject: 23 commits discovered, 5 pre-imported SHAs correctly excluded on a
+second scan, a wrong author email yielding 0 of 23, and a missing repository
+failing on its own without disturbing the good one.
+
+**Decisions**
+
+- **Author matching is exact and case-insensitive in Swift, not git's
+  `--author`.** That flag is a regex substring test: it reads a `+` in an
+  address as syntax, and matches a colleague whose address merely contains
+  yours. The README is explicit that other developers' commits must not be
+  imported.
+- **Merges are excluded** (`--no-merges`). A merge commit is bookkeeping, not
+  shipped work; counting it inflates the number the score exists to measure.
+  Easy to make configurable later if it turns out to matter.
+- **Fields are delimited with 0x1F and records with 0x1E** — control characters
+  that cannot occur in a commit message, unlike any printable delimiter someone
+  will eventually type.
+- **A malformed log record is skipped, not fatal.** One odd commit should not
+  cost the user the other thousand.
+- **The subprocess runs on a Dispatch queue, never the cooperative pool.**
+  Waiting on a process blocks its thread, and the cooperative pool has roughly
+  one thread per core — concurrent scans took all of them and deadlocked the
+  whole test run before this was fixed. Worth remembering: anything blocking
+  belongs off that pool.
+- **Already-imported SHAs come from the feed itself**, since a Git-derived item
+  keeps its SHA as its id. No second bookkeeping list that can drift.
+- **Scope lives on the repository**, so work/personal is decided once at setup
+  rather than per commit.
+- **Found commits stay in `pendingCommits` instead of becoming shipped items.**
+  Scoring is Phase 4; nothing here invents a weight in the meantime. This is the
+  one part of the phase deliverable that is deliberately incomplete — see D10.
+- **Tests build real Git repositories** in temp directories and commit into
+  them. The scanner's whole job is talking to git; a fake would only prove the
+  fake matches itself.
+
 ---
 
 ## Deferred work
@@ -115,9 +157,12 @@ Known and intentional. Each item names the phase that should pick it up.
 | D1 | Opening Settings triggers a save with no edit — the `TextField` number binding writes back a normalised value on appearance, tripping `settings.didSet` | Harmless today: the write is atomic and idempotent. Wants a real fix (commit-on-change binding, or compare before assigning), not a workaround | 7 |
 | D2 | `PersistenceService.export(to:)` exists and is tested, but has no menu item or save panel | The service method was two lines next to `save`; the UI is an export feature | 7 |
 | D3 | Menu-bar panel exposes `missing value` for `AXTitle`/`AXValue` under System Events | May be a SwiftUI panel quirk rather than a real defect. Needs checking with VoiceOver, not with a script | 7 |
-| D4 | Repository management UI — add, remove, name, scope, enable/disable | Nothing to point it at until the scanner exists | 3 |
-| D5 | "Scan Repositories" entry in the menu-bar panel | Same | 3 |
+| D4 | ~~Repository management UI~~ — **done in Phase 3** | — | ✅ |
+| D5 | ~~"Scan Repositories" in the menu bar~~ — **done in Phase 3** | — | ✅ |
 | D6 | "Quick Log" entry in the menu-bar panel | Manual logging is its own phase | 4 |
 | D7 | Dashboard chart is placeholder copy; summary tiles are today-only | Month aggregation, cumulative totals, and the goal path arrive with the chart that consumes them | 5 |
 | D8 | `AppIcon.appiconset` is empty, so the app ships with the generic icon | Packaging concern | 8 |
-| D9 | Settings changes are written but there is no repositories tab, so `VelocitySettings.gitAuthorEmail` cannot yet be verified against a real repo | Needs the Git layer to validate against | 3 |
+| D9 | ~~No repositories tab~~ — **done in Phase 3** | — | ✅ |
+| D10 | Scanned commits sit in `pendingCommits` and never reach the feed | Turning a commit into points needs the scoring engine. Phase 4 wires `pendingCommits` → `ScoringEngine` → `ShippedItem` and this disappears | 4 |
+| D11 | A scan reads each repository's full history every time | Fine at this size — 23 commits in 0.09s — but a repository with 50k commits will not be. Wants an incremental bound once there is something to measure | 8 |
+| D12 | Repositories are stored as absolute paths, so moving a folder silently breaks it until the next scan reports it | Correct behaviour for now: the error is reported per repository and nothing crashes. A re-locate affordance would be nicer | 7 |
