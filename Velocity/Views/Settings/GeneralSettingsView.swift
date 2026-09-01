@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GeneralSettingsView: View {
     @Environment(AppEnvironment.self) private var appEnvironment
+    @State private var detectFailed = false
 
     var body: some View {
         @Bindable var store = appEnvironment.store
@@ -14,8 +15,24 @@ struct GeneralSettingsView: View {
                 )
                 .help("Points per day you are aiming to ship.")
 
-                TextField("Git author email", text: $store.settings.gitAuthorEmail)
-                    .help("Only commits by this author are imported.")
+                LabeledContent("Git author email") {
+                    HStack(spacing: 8) {
+                        TextField("Git author email", text: $store.settings.gitAuthorEmail)
+                            .labelsHidden()
+                            .help("Only commits by this author are imported.")
+                        Button("Detect") {
+                            Task {
+                                detectFailed = await !store.detectGitAuthorEmail()
+                            }
+                        }
+                        .help("Read user.email from this Mac's global git config.")
+                    }
+                }
+                if detectFailed {
+                    Text("No global user.email is set in git config.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section {

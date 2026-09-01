@@ -5,7 +5,10 @@ struct SettingsView: View {
         TabView {
             GeneralSettingsView()
                 .tabItem { Label("General", systemImage: "gearshape") }
+
+            RepositorySettingsView()
+                .tabItem { Label("Repositories", systemImage: "folder") }
         }
-        .frame(minWidth: 440, minHeight: 200)
+        .frame(minWidth: 560, minHeight: 260)
     }
 }
