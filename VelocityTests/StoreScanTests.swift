@@ -100,8 +100,10 @@ struct StoreScanTests {
 
         #expect(store.isScanning == false)
         #expect(store.scanError == nil)
-        #expect(store.pendingCommits.count == 2)
-        #expect(store.pendingCommits.allSatisfy { $0.scope == .work })
+        #expect(store.lastImportCount == 2)
+        #expect(store.shippedItems.count == 2)
+        #expect(store.shippedItems.allSatisfy { $0.scope == .work })
+        #expect(store.shippedItems.allSatisfy { $0.source == .git })
         #expect(store.lastScanReport?.scannedRepositoryCount == 1)
     }
 
@@ -131,8 +133,9 @@ struct StoreScanTests {
 
         await store.scanRepositories()
 
-        #expect(store.pendingCommits.count == 1)
-        #expect(store.pendingCommits.first?.commit.subject == "feat: brand new")
+        #expect(store.lastImportCount == 1)
+        #expect(store.shippedItems.count == 2)
+        #expect(store.shippedItems.map(\.title).contains("feat: brand new"))
     }
 
     @Test func scanningWithoutAnEmailReportsRatherThanRunning() async throws {
@@ -145,7 +148,7 @@ struct StoreScanTests {
         await store.scanRepositories()
 
         #expect(store.scanError != nil)
-        #expect(store.pendingCommits.isEmpty)
+        #expect(store.shippedItems.isEmpty)
         #expect(store.lastScanReport == nil)
     }
 
@@ -161,7 +164,7 @@ struct StoreScanTests {
 
         await store.scanRepositories()
 
-        #expect(store.pendingCommits.count == 1)
+        #expect(store.shippedItems.count == 1)
         #expect(store.lastScanReport?.failedRepositories.count == 1)
     }
 
@@ -179,6 +182,6 @@ struct StoreScanTests {
 
         #expect(store.canScan == false)
         await store.scanRepositories()
-        #expect(store.pendingCommits.isEmpty)
+        #expect(store.shippedItems.isEmpty)
     }
 }

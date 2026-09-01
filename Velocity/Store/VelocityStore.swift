@@ -43,17 +43,14 @@ final class VelocityStore {
     /// repository failing inside one.
     private(set) var scanError: GitError?
 
-    /// Commits found by the last scan that are not yet in the feed.
-    ///
-    /// They stay here rather than becoming shipped items because turning a
-    /// commit into a score is the scoring engine's job, which does not exist
-    /// yet. Nothing invents a weight in the meantime.
-    private(set) var pendingCommits: [DiscoveredCommit] = []
+    /// How many items the last scan added to the feed.
+    private(set) var lastImportCount = 0
 
     // MARK: - Dependencies
 
     private let persistence: PersistenceService?
     private let scanner: GitScanner?
+    private let scoringEngine = ScoringEngine()
     private var saveTask: Task<Void, Never>?
 
     /// How long to wait after a change before writing. Collapses a burst of
@@ -181,6 +178,36 @@ final class VelocityStore {
         scheduleSaveIfLoaded()
     }
 
+    /// Record work by hand, for what Git did not capture.
+    @discardableResult
+    func logManualItem(title: String, scope: ProjectScope, weight: ImpactWeight) -> ShippedItem? {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let item = ShippedItem.manual(title: trimmed, scope: scope, weight: weight)
+        add(item)
+        return item
+    }
+
+    /// Change an item's impact after the fact — for a manual entry logged in
+    /// haste, or a commit whose message undersells what it did.
+    func setWeight(_ weight: ImpactWeight, forItemWith id: ShippedItem.ID) {
+        guard let index = shippedItems.firstIndex(where: { $0.id == id }),
+              shippedItems[index].weight != weight
+        else { return }
+        shippedItems[index].weight = weight
+        scheduleSaveIfLoaded()
+    }
+
+    /// Move an item between work and personal.
+    func setScope(_ scope: ProjectScope, forItemWith id: ShippedItem.ID) {
+        guard let index = shippedItems.firstIndex(where: { $0.id == id }),
+              shippedItems[index].scope != scope
+        else { return }
+        shippedItems[index].scope = scope
+        scheduleSaveIfLoaded()
+    }
+
     func delete(id: ShippedItem.ID) {
         let before = shippedItems.count
         shippedItems.removeAll { $0.id == id }
@@ -229,9 +256,6 @@ final class VelocityStore {
         let before = repositories.count
         repositories.removeAll { $0.id == id }
         guard repositories.count != before else { return }
-        pendingCommits.removeAll { commit in
-            !repositories.contains { $0.path == commit.commit.repositoryPath }
-        }
         scheduleSaveIfLoaded()
     }
 
@@ -276,13 +300,18 @@ final class VelocityStore {
         )
 
         lastScanReport = report
-        pendingCommits = report.newCommits
+
+        // Score what was found and put it straight into the feed. The SHA is
+        // the item id, so this stays idempotent however often it runs.
+        let imported = report.newCommits.map(scoringEngine.shippedItem(for:))
+        lastImportCount = imported.count
+        add(contentsOf: imported)
 
         AppLog.scan.info(
             """
             Scan finished in \(report.duration, format: .fixed(precision: 2))s: \
             \(report.scannedRepositoryCount) repositories read, \
-            \(report.newCommits.count) new commits, \
+            \(report.newCommits.count) commits imported, \
             \(report.failedRepositories.count) failed
             """
         )
