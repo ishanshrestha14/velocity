@@ -33,9 +33,12 @@ struct DashboardView: View {
             }
 
             DashboardCard(title: "Shipped") {
-                ShippedFeedView(items: items) { id in
-                    store.delete(id: id)
-                }
+                ShippedFeedView(
+                    items: items,
+                    onDelete: { store.delete(id: $0) },
+                    onChangeWeight: { store.setWeight($1, forItemWith: $0) },
+                    onChangeScope: { store.setScope($1, forItemWith: $0) }
+                )
                 .frame(minHeight: 160)
             }
         }
