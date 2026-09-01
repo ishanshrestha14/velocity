@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct VelocityApp: App {
-    /// Owned here so every scene observes one store.
+    /// Owned here so the menu bar, dashboard, and settings all observe one store.
     @State private var environment = AppEnvironment()
 
     var body: some Scene {
@@ -24,12 +24,29 @@ struct VelocityApp: App {
         .windowResizability(.contentMinSize)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .windowArrangement) {
+                OpenDashboardCommand()
+            }
         }
 
         Settings {
             SettingsView()
                 .environment(environment)
         }
+    }
+}
+
+/// Menu command + keyboard shortcut for the dashboard. Lives in a `View` so it
+/// can reach the `openWindow` environment action.
+private struct OpenDashboardCommand: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Open Dashboard") {
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            openWindow(id: WindowID.dashboard)
+        }
+        .keyboardShortcut("d", modifiers: .command)
     }
 }
 
