@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Velocity runs /usr/bin/git against arbitrary absolute paths the user
+	     chooses. The App Sandbox would block both the exec and the reads, and
+	     this is a locally-built personal utility, not a Mac App Store product. -->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+</dict>
+</plist>
