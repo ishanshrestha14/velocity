@@ -31,9 +31,29 @@ final class VelocityStore {
     /// or failed load can never overwrite good data with an empty document.
     private(set) var hasLoaded = false
 
+    /// True while a scan is running. The UI disables re-scanning rather than
+    /// queueing a second one.
+    private(set) var isScanning = false
+
+    /// The most recent scan. Not persisted — it describes one run, and a stale
+    /// report from a previous launch would be misleading.
+    private(set) var lastScanReport: ScanReport?
+
+    /// Set when a scan could not start at all, as opposed to a single
+    /// repository failing inside one.
+    private(set) var scanError: GitError?
+
+    /// Commits found by the last scan that are not yet in the feed.
+    ///
+    /// They stay here rather than becoming shipped items because turning a
+    /// commit into a score is the scoring engine's job, which does not exist
+    /// yet. Nothing invents a weight in the meantime.
+    private(set) var pendingCommits: [DiscoveredCommit] = []
+
     // MARK: - Dependencies
 
     private let persistence: PersistenceService?
+    private let scanner: GitScanner?
     private var saveTask: Task<Void, Never>?
 
     /// How long to wait after a change before writing. Collapses a burst of
@@ -44,10 +64,12 @@ final class VelocityStore {
 
     init(
         persistence: PersistenceService? = nil,
+        scanner: GitScanner? = nil,
         data: VelocityData = .empty,
         startupError: PersistenceError? = nil
     ) {
         self.persistence = persistence
+        self.scanner = scanner
         self.persistenceError = startupError
         applyLoaded(data)
     }
@@ -168,9 +190,38 @@ final class VelocityStore {
 
     // MARK: - Repositories
 
+    /// Add a repository after checking it is one.
+    ///
+    /// Throws rather than silently ignoring a bad path, so the settings screen
+    /// can say what is actually wrong with the folder the user picked.
+    func addRepository(path: String, scope: ProjectScope) async throws {
+        let cleanPath = (path as NSString).standardizingPath
+        guard !repositories.contains(where: { $0.path == cleanPath }) else { return }
+
+        if let scanner {
+            try await GitRepositoryValidator(runner: scanner.runner).validate(path: cleanPath)
+        }
+
+        repositories.append(
+            Repository(
+                name: GitRepositoryValidator.suggestedName(for: cleanPath),
+                path: cleanPath,
+                scope: scope
+            )
+        )
+        scheduleSaveIfLoaded()
+    }
+
     func addRepository(_ repository: Repository) {
         guard !repositories.contains(where: { $0.path == repository.path }) else { return }
         repositories.append(repository)
+        scheduleSaveIfLoaded()
+    }
+
+    func updateRepository(_ repository: Repository) {
+        guard let index = repositories.firstIndex(where: { $0.id == repository.id }) else { return }
+        guard repositories[index] != repository else { return }
+        repositories[index] = repository
         scheduleSaveIfLoaded()
     }
 
@@ -178,7 +229,83 @@ final class VelocityStore {
         let before = repositories.count
         repositories.removeAll { $0.id == id }
         guard repositories.count != before else { return }
+        pendingCommits.removeAll { commit in
+            !repositories.contains { $0.path == commit.commit.repositoryPath }
+        }
         scheduleSaveIfLoaded()
+    }
+
+    // MARK: - Scanning
+
+    /// Whether a scan can run at all. Both conditions are things the user fixes
+    /// in Settings, so the UI can point at them.
+    var canScan: Bool {
+        scanner != nil
+            && !settings.gitAuthorEmail.trimmingCharacters(in: .whitespaces).isEmpty
+            && repositories.contains(where: \.enabled)
+    }
+
+    /// Read every enabled repository and collect commits not yet imported.
+    func scanRepositories() async {
+        guard !isScanning else { return }
+        guard let scanner else {
+            scanError = .executableUnavailable("Git was not found on this Mac.")
+            return
+        }
+
+        let email = settings.gitAuthorEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !email.isEmpty else {
+            scanError = .commandFailed(status: 0, message: "Set your Git author email in Settings before scanning.")
+            return
+        }
+
+        isScanning = true
+        scanError = nil
+        defer { isScanning = false }
+
+        AppLog.scan.info("Scanning \(self.repositories.filter(\.enabled).count) repositories")
+
+        // A commit already in the feed keeps its SHA as its id, so the feed
+        // itself is the record of what has been imported.
+        let known = Set(shippedItems.compactMap(\.commitSHA))
+
+        let report = await scanner.scan(
+            repositories: repositories,
+            authorEmail: email,
+            knownCommitSHAs: known
+        )
+
+        lastScanReport = report
+        pendingCommits = report.newCommits
+
+        AppLog.scan.info(
+            """
+            Scan finished in \(report.duration, format: .fixed(precision: 2))s: \
+            \(report.scannedRepositoryCount) repositories read, \
+            \(report.newCommits.count) new commits, \
+            \(report.failedRepositories.count) failed
+            """
+        )
+        for result in report.results {
+            if let error = result.error {
+                AppLog.scan.error("\(result.repositoryName, privacy: .public): \(error.shortDescription, privacy: .public)")
+            } else {
+                AppLog.scan.info("\(result.repositoryName, privacy: .public): \(result.matchingCommits) mine, \(result.newCommits.count) new")
+            }
+        }
+    }
+
+    func dismissScanError() {
+        scanError = nil
+    }
+
+    /// Fill in the Git author email from the machine's global git config.
+    func detectGitAuthorEmail() async -> Bool {
+        guard let scanner, let email = await scanner.runner.detectGlobalAuthorEmail() else {
+            return false
+        }
+        settings.gitAuthorEmail = email
+        return true
     }
 
     // MARK: - Derived reads

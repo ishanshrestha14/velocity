@@ -17,13 +17,20 @@ final class AppEnvironment {
     /// Loading starts immediately rather than waiting for a view to appear —
     /// the menu bar label shows today's total before any window is opened.
     static func live() -> AppEnvironment {
+        // A machine without the command line tools still gets a working app;
+        // scanning is simply unavailable and says so.
+        let scanner = try? GitScanner.locate()
+
         let store: VelocityStore
         do {
-            store = VelocityStore(persistence: try PersistenceService())
+            store = VelocityStore(persistence: try PersistenceService(), scanner: scanner)
         } catch {
             // Without a data folder the app still runs, but the user is told
             // that nothing will be saved rather than losing work silently.
-            store = VelocityStore(startupError: .directoryUnavailable(error.localizedDescription))
+            store = VelocityStore(
+                scanner: scanner,
+                startupError: .directoryUnavailable(error.localizedDescription)
+            )
         }
         let environment = AppEnvironment(store: store)
         Task { await store.load() }
