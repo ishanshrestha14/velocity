@@ -14,6 +14,14 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 16) {
             header(store: store)
 
+            if let error = store.persistenceError {
+                PersistenceBanner(error: error) {
+                    store.dismissPersistenceError()
+                } onRevealBackups: {
+                    store.revealDataDirectory()
+                }
+            }
+
             SummaryStatsView(
                 points: todayItems.reduce(0) { $0 + $1.points },
                 itemCount: todayItems.count,
@@ -70,5 +78,5 @@ private struct ChartPlaceholder: View {
 
 #Preview {
     DashboardView()
-        .environment(AppEnvironment())
+        .environment(AppEnvironment(store: VelocityStore()))
 }

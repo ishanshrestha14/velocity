@@ -141,5 +141,5 @@ private struct MenuBarButtonLabel: View {
 
 #Preview {
     MenuBarView()
-        .environment(AppEnvironment())
+        .environment(AppEnvironment(store: VelocityStore()))
 }
