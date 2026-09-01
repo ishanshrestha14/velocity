@@ -16,7 +16,7 @@ struct VelocityApp: App {
         // NSMenu-backed menu cannot provide.
         .menuBarExtraStyle(.window)
 
-        Window("Velocity", id: WindowID.dashboard) {
+        Window("Velocity Dashboard", id: WindowID.dashboard) {
             DashboardView()
                 .environment(environment)
         }

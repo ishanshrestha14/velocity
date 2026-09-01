@@ -4,6 +4,7 @@ import SwiftUI
 /// actions worth reaching without opening a window.
 struct MenuBarView: View {
     @Environment(AppEnvironment.self) private var appEnvironment
+    @Environment(\.openWindow) private var openWindow
 
     private var store: VelocityStore { appEnvironment.store }
 
@@ -59,12 +60,26 @@ struct MenuBarView: View {
 
     private var actions: some View {
         VStack(spacing: 2) {
+            MenuBarButton(title: "Open Dashboard", systemImage: "chart.line.uptrend.xyaxis") {
+                openDashboard()
+            }
+
+            Divider()
+                .padding(.vertical, 4)
+
             MenuBarButton(title: "Quit Velocity", systemImage: "power") {
                 NSApplication.shared.terminate(nil)
             }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
+    }
+
+    private func openDashboard() {
+        // An accessory app has no dock icon, so it must ask to come forward
+        // before its window can take focus.
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        openWindow(id: WindowID.dashboard)
     }
 }
 
