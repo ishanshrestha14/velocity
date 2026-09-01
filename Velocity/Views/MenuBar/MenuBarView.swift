@@ -64,6 +64,11 @@ struct MenuBarView: View {
                 openDashboard()
             }
 
+            SettingsLink {
+                MenuBarButtonLabel(title: "Settings…", systemImage: "gearshape")
+            }
+            .buttonStyle(.plain)
+
             Divider()
                 .padding(.vertical, 4)
 

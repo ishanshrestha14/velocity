@@ -25,6 +25,11 @@ struct VelocityApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {}
         }
+
+        Settings {
+            SettingsView()
+                .environment(environment)
+        }
     }
 }
 
