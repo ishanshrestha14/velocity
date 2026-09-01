@@ -2,8 +2,10 @@ import SwiftUI
 
 @main
 struct VelocityApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     /// Owned here so the menu bar, dashboard, and settings all observe one store.
-    @State private var environment = AppEnvironment()
+    @State private var environment = AppEnvironment.live()
 
     var body: some Scene {
         MenuBarExtra {
@@ -11,6 +13,9 @@ struct VelocityApp: App {
                 .environment(environment)
         } label: {
             MenuBarLabel(points: environment.store.pointsShippedToday())
+                // The status item is always present, unlike the panel's
+                // contents, so this is where the delegate reliably gets wired.
+                .onAppear { appDelegate.environment = environment }
         }
         // The window style gives full SwiftUI control over the panel, which an
         // NSMenu-backed menu cannot provide.
@@ -33,6 +38,19 @@ struct VelocityApp: App {
             SettingsView()
                 .environment(environment)
         }
+    }
+}
+
+/// Flushes any debounced save before the process goes away.
+///
+/// SwiftUI has no scene hook for termination, so this is the one place an
+/// AppKit delegate earns its keep.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    @MainActor var environment: AppEnvironment?
+
+    @MainActor
+    func applicationWillTerminate(_ notification: Notification) {
+        environment?.store.flushPendingSave()
     }
 }
 
