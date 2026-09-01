@@ -6,6 +6,8 @@ struct MenuBarView: View {
     @Environment(AppEnvironment.self) private var appEnvironment
     @Environment(\.openWindow) private var openWindow
 
+    @State private var isQuickLogging = false
+
     private var store: VelocityStore { appEnvironment.store }
 
     var body: some View {
@@ -14,6 +16,10 @@ struct MenuBarView: View {
             Divider()
             todaySection
             Divider()
+            if isQuickLogging {
+                QuickLogView { isQuickLogging = false }
+                Divider()
+            }
             actions
             if let status = scanStatus {
                 Divider()
@@ -68,6 +74,11 @@ struct MenuBarView: View {
 
     private var actions: some View {
         VStack(spacing: 2) {
+            MenuBarButton(title: "Quick Log", systemImage: "plus.circle") {
+                isQuickLogging.toggle()
+            }
+            .disabled(isQuickLogging)
+
             MenuBarButton(title: "Open Dashboard", systemImage: "chart.line.uptrend.xyaxis") {
                 openDashboard()
             }
@@ -104,8 +115,8 @@ struct MenuBarView: View {
         guard let report = store.lastScanReport else {
             return store.canScan ? nil : "Add a repository and set your Git author email in Settings."
         }
-        let new = report.newCommits.count
-        var line = "Last scan: \(new) new commit\(new == 1 ? "" : "s")"
+        let imported = report.newCommits.count
+        var line = "Last scan: \(imported) commit\(imported == 1 ? "" : "s") imported"
         let failed = report.failedRepositories.count
         if failed > 0 {
             line += " · \(failed) failed"
