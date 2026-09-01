@@ -15,6 +15,14 @@ struct MenuBarView: View {
             todaySection
             Divider()
             actions
+            if let status = scanStatus {
+                Divider()
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+            }
         }
         .frame(width: 280)
     }
@@ -64,6 +72,14 @@ struct MenuBarView: View {
                 openDashboard()
             }
 
+            MenuBarButton(
+                title: store.isScanning ? "Scanning…" : "Scan Repositories",
+                systemImage: "arrow.triangle.2.circlepath"
+            ) {
+                Task { await store.scanRepositories() }
+            }
+            .disabled(store.isScanning || !store.canScan)
+
             SettingsLink {
                 MenuBarButtonLabel(title: "Settings…", systemImage: "gearshape")
             }
@@ -78,6 +94,23 @@ struct MenuBarView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
+    }
+
+    /// One line about the last scan, or about what is stopping one.
+    private var scanStatus: String? {
+        if let error = store.scanError {
+            return error.errorDescription
+        }
+        guard let report = store.lastScanReport else {
+            return store.canScan ? nil : "Add a repository and set your Git author email in Settings."
+        }
+        let new = report.newCommits.count
+        var line = "Last scan: \(new) new commit\(new == 1 ? "" : "s")"
+        let failed = report.failedRepositories.count
+        if failed > 0 {
+            line += " · \(failed) failed"
+        }
+        return line
     }
 
     private func openDashboard() {
