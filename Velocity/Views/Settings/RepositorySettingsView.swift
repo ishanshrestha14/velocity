@@ -8,8 +8,20 @@ import SwiftUI
 struct RepositorySettingsView: View {
     @Environment(AppEnvironment.self) private var appEnvironment
 
-    @State private var addError: GitError?
+    /// Scope applied to whatever is added next. Chosen before the picker opens
+    /// so adding ten repositories does not mean correcting ten rows afterwards.
+    @State private var addScope: ProjectScope = .personal
+    @State private var addFailures: [AddFailure] = []
+    @State private var addSummary: String?
     @State private var isAdding = false
+
+    private struct AddFailure: Identifiable {
+        let id = UUID()
+        let path: String
+        let error: GitError
+
+        var folderName: String { URL(fileURLWithPath: path).lastPathComponent }
+    }
 
     private var store: VelocityStore { appEnvironment.store }
 
@@ -21,17 +33,32 @@ struct RepositorySettingsView: View {
                 repositoryList
             }
 
-            if let addError {
-                errorRow(addError)
+            if let addSummary {
+                Text(addSummary)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
 
-            HStack {
+            ForEach(addFailures) { failure in
+                errorRow(failure)
+            }
+
+            HStack(spacing: 10) {
                 Button {
-                    chooseRepository()
+                    chooseRepositories()
                 } label: {
-                    Label("Add Repository…", systemImage: "plus")
+                    Label("Add Repositories…", systemImage: "plus")
                 }
                 .disabled(isAdding)
+
+                Picker("Add as", selection: $addScope) {
+                    ForEach(ProjectScope.allCases) { scope in
+                        Text(scope.displayName).tag(scope)
+                    }
+                }
+                .pickerStyle(.menu)
+                .fixedSize()
+                .help("Scope given to repositories you add. Each row can be changed afterwards.")
 
                 Spacer()
 
@@ -87,14 +114,14 @@ struct RepositorySettingsView: View {
         .frame(maxHeight: .infinity)
     }
 
-    private func errorRow(_ error: GitError) -> some View {
+    private func errorRow(_ failure: AddFailure) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.yellow)
             VStack(alignment: .leading, spacing: 2) {
-                Text(error.errorDescription ?? "Could not add that folder.")
+                Text("\(failure.folderName) — \(failure.error.errorDescription ?? "could not be added.")")
                     .fontWeight(.semibold)
-                if let suggestion = error.recoverySuggestion {
+                if let suggestion = failure.error.recoverySuggestion {
                     Text(suggestion)
                         .font(.callout)
                         .foregroundStyle(.secondary)
@@ -116,28 +143,65 @@ struct RepositorySettingsView: View {
         return parts.joined(separator: " · ")
     }
 
-    private func chooseRepository() {
+    private func chooseRepositories() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         panel.prompt = "Add"
-        panel.message = "Choose the top level of a Git repository."
+        panel.message = "Choose one or more Git repositories."
 
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
+        let paths = panel.urls.map { $0.path(percentEncoded: false) }
 
         isAdding = true
-        addError = nil
+        addFailures = []
+        addSummary = nil
+
         Task {
             defer { isAdding = false }
-            do {
-                try await store.addRepository(path: url.path(percentEncoded: false), scope: .personal)
-            } catch let error as GitError {
-                addError = error
-            } catch {
-                addError = .commandFailed(status: -1, message: error.localizedDescription)
+            var added = 0
+            var duplicates = 0
+            var failures: [AddFailure] = []
+
+            // Each folder is judged on its own: one that is not a repository
+            // must not stop the rest of the selection from being added.
+            for path in paths {
+                do {
+                    switch try await store.addRepository(path: path, scope: addScope) {
+                    case .added: added += 1
+                    case .alreadyPresent: duplicates += 1
+                    }
+                } catch let error as GitError {
+                    failures.append(AddFailure(path: path, error: error))
+                } catch {
+                    failures.append(
+                        AddFailure(path: path, error: .commandFailed(status: -1, message: error.localizedDescription))
+                    )
+                }
             }
+
+            addFailures = failures
+            addSummary = Self.summary(added: added, duplicates: duplicates, failed: failures.count)
         }
+    }
+
+    /// Only worth saying anything when more than one folder was chosen, or when
+    /// something was skipped.
+    static func summary(added: Int, duplicates: Int, failed: Int) -> String? {
+        guard added + duplicates + failed > 1 || duplicates > 0 || failed > 0 else { return nil }
+
+        var parts: [String] = []
+        if added > 0 {
+            parts.append("Added \(added) repositor\(added == 1 ? "y" : "ies")")
+        }
+        if duplicates > 0 {
+            parts.append("\(duplicates) already added")
+        }
+        if failed > 0 {
+            parts.append("\(failed) skipped")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 
