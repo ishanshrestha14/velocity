@@ -14,16 +14,16 @@ Nothing gets deferred without landing in that table.
 | 1 | Project Foundation | ✅ Complete |
 | 2 | Local Persistence + Domain Models | ✅ Complete |
 | 3 | Git Engine | ✅ Complete |
-| 4 | Scoring Engine + Quick Log | ⬜ Not started |
+| 4 | Scoring Engine + Quick Log | ✅ Complete |
 | 5 | Dashboard + Swift Charts | ⬜ Not started |
 | 6 | Repository Automation | ⬜ Not started |
 | 7 | Native macOS Polish | ⬜ Not started |
 | 8 | Reliability, Packaging & Release | ⬜ Not started |
 
-Current state: the app runs from the menu bar, keeps its state in local JSON
-across restarts, and can read commits out of configured Git repositories. Those
-commits are found but not yet scored, so the feed is still empty — the scoring
-engine that turns a commit into points is the next phase.
+Current state: the app is useful end to end. It reads commits out of configured
+repositories, scores them 1/3/5, accepts work logged by hand, and keeps all of it
+in local JSON across restarts. What is missing is the picture: the dashboard
+still has no chart, no month aggregation, and no goal path.
 
 ## Verifying
 
@@ -146,6 +146,42 @@ failing on its own without disturbing the good one.
   them. The scanner's whole job is talking to git; a fake would only prove the
   fake matches itself.
 
+## Phase 4 — Scoring Engine + Quick Log ✅
+
+`ScoringEngine`, wired into the scan so found commits become scored feed items,
+plus manual quick logging in the menu bar and delete / impact / scope actions in
+the feed.
+
+All six acceptance criteria met. Scoring was checked against this repository:
+33 commits imported, and every score agreed with an independent reimplementation
+of the rules written separately to check the app against.
+
+**Decisions**
+
+- **Scoring parses the conventional-commit header rather than matching
+  substrings.** That is the whole point of parsing it: `fixture:` is not a
+  `fix:`, `deployment notes:` is not a `deploy:`, `features:` is not a `feat:`.
+  Each of those has a test.
+- **A `!` outranks its type.** `refactor!:` is a launch, not a refactor — a
+  breaking change is epic whatever the type says. The README only lists `feat!`,
+  but the general rule is the one that makes sense.
+- **A `(scope)` never affects the score**, and only the subject line is read —
+  a body mentioning `deploy:` must not promote a `feat:`.
+- **The fallback is 1 point, not 0.** Work that shipped counts; a message that
+  says nothing about its impact does not get to claim a large one.
+- **Rescanning never re-scores an existing item.** An impact changed by hand
+  survives a rescan, because import only adds SHAs that are not already in the
+  feed. Tested explicitly.
+- **The quick-log form is inline in the menu bar panel, not a window.** Opening a
+  window to record one line costs more than the thing being recorded. Scope and
+  impact persist between entries; the description always starts empty.
+- **Delete is a hover button as well as a context-menu item.** The README asks
+  every item to offer a delete action, and right-click alone is too well hidden
+  for the primary way of undoing a mistake.
+- **Impact and scope can be overridden from the feed.** A commit message often
+  undersells what the commit did, and the score is meant to be honest rather
+  than merely automatic.
+
 ---
 
 ## Deferred work
@@ -159,10 +195,12 @@ Known and intentional. Each item names the phase that should pick it up.
 | D3 | Menu-bar panel exposes `missing value` for `AXTitle`/`AXValue` under System Events | May be a SwiftUI panel quirk rather than a real defect. Needs checking with VoiceOver, not with a script | 7 |
 | D4 | ~~Repository management UI~~ — **done in Phase 3** | — | ✅ |
 | D5 | ~~"Scan Repositories" in the menu bar~~ — **done in Phase 3** | — | ✅ |
-| D6 | "Quick Log" entry in the menu-bar panel | Manual logging is its own phase | 4 |
+| D6 | ~~"Quick Log" in the menu bar~~ — **done in Phase 4** | — | ✅ |
 | D7 | Dashboard chart is placeholder copy; summary tiles are today-only | Month aggregation, cumulative totals, and the goal path arrive with the chart that consumes them | 5 |
 | D8 | `AppIcon.appiconset` is empty, so the app ships with the generic icon | Packaging concern | 8 |
 | D9 | ~~No repositories tab~~ — **done in Phase 3** | — | ✅ |
-| D10 | Scanned commits sit in `pendingCommits` and never reach the feed | Turning a commit into points needs the scoring engine. Phase 4 wires `pendingCommits` → `ScoringEngine` → `ShippedItem` and this disappears | 4 |
+| D10 | ~~Scanned commits never reach the feed~~ — **done in Phase 4** | — | ✅ |
+| D13 | The quick-log description field may not take keyboard focus when the panel opens | Seen while driving the panel through the accessibility API, which is not how a person opens it — needs confirming with a real click before being treated as a bug | 7 |
+| D14 | Scoring rules are compiled in; there is no way to add a type or change a weight | The README lists custom scoring rules under future ideas, and the rule set should settle before it becomes configurable | — |
 | D11 | A scan reads each repository's full history every time | Fine at this size — 23 commits in 0.09s — but a repository with 50k commits will not be. Wants an incremental bound once there is something to measure | 8 |
 | D12 | Repositories are stored as absolute paths, so moving a folder silently breaks it until the next scan reports it | Correct behaviour for now: the error is reported per repository and nothing crashes. A re-locate affordance would be nicer | 7 |
