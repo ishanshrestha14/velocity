@@ -200,7 +200,7 @@ Known and intentional. Each item names the phase that should pick it up.
 | D8 | `AppIcon.appiconset` is empty, so the app ships with the generic icon | Packaging concern | 8 |
 | D9 | ~~No repositories tab~~ — **done in Phase 3** | — | ✅ |
 | D10 | ~~Scanned commits never reach the feed~~ — **done in Phase 4** | — | ✅ |
-| D13 | The quick-log description field may not take keyboard focus when the panel opens | Seen while driving the panel through the accessibility API, which is not how a person opens it — needs confirming with a real click before being treated as a bug | 7 |
+| D13 | ~~Quick-log field may not take focus~~ — **not a bug.** Confirmed working by typing into it with a real click; the earlier symptom was the accessibility script, not the app | — | ✅ |
 | D14 | Scoring rules are compiled in; there is no way to add a type or change a weight | The README lists custom scoring rules under future ideas, and the rule set should settle before it becomes configurable | — |
 | D11 | A scan reads each repository's full history every time | Fine at this size — 23 commits in 0.09s — but a repository with 50k commits will not be. Wants an incremental bound once there is something to measure | 8 |
 | D12 | Repositories are stored as absolute paths, so moving a folder silently breaks it until the next scan reports it | Correct behaviour for now: the error is reported per repository and nothing crashes. A re-locate affordance would be nicer | 7 |
