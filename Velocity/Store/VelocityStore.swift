@@ -217,26 +217,38 @@ final class VelocityStore {
 
     // MARK: - Repositories
 
+    /// What happened to one path handed to `addRepository`.
+    ///
+    /// Adding several folders at once means some can succeed while others are
+    /// duplicates, so "did nothing" and "added it" have to be told apart.
+    enum AddOutcome: Equatable, Sendable {
+        case added(Repository)
+        case alreadyPresent
+    }
+
     /// Add a repository after checking it is one.
     ///
     /// Throws rather than silently ignoring a bad path, so the settings screen
     /// can say what is actually wrong with the folder the user picked.
-    func addRepository(path: String, scope: ProjectScope) async throws {
+    @discardableResult
+    func addRepository(path: String, scope: ProjectScope) async throws -> AddOutcome {
         let cleanPath = (path as NSString).standardizingPath
-        guard !repositories.contains(where: { $0.path == cleanPath }) else { return }
+        guard !repositories.contains(where: { $0.path == cleanPath }) else {
+            return .alreadyPresent
+        }
 
         if let scanner {
             try await GitRepositoryValidator(runner: scanner.runner).validate(path: cleanPath)
         }
 
-        repositories.append(
-            Repository(
-                name: GitRepositoryValidator.suggestedName(for: cleanPath),
-                path: cleanPath,
-                scope: scope
-            )
+        let repository = Repository(
+            name: GitRepositoryValidator.suggestedName(for: cleanPath),
+            path: cleanPath,
+            scope: scope
         )
+        repositories.append(repository)
         scheduleSaveIfLoaded()
+        return .added(repository)
     }
 
     func addRepository(_ repository: Repository) {
