@@ -15,7 +15,7 @@ Nothing gets deferred without landing in that table.
 | 2 | Local Persistence + Domain Models | ✅ Complete |
 | 3 | Git Engine | ✅ Complete |
 | 4 | Scoring Engine + Quick Log | ✅ Complete |
-| 5 | Dashboard + Swift Charts | ⬜ Not started |
+| 5 | Dashboard + Swift Charts | ✅ Complete |
 | 6 | Repository Automation | ⬜ Not started |
 | 7 | Native macOS Polish | ⬜ Not started |
 | 8 | Reliability, Packaging & Release | ⬜ Not started |
@@ -182,6 +182,55 @@ of the rules written separately to check the app against.
   undersells what the commit did, and the score is meant to be honest rather
   than merely automatic.
 
+## Phase 5 — Dashboard + Swift Charts ✅
+
+`VelocityAggregator`, monthly analytics on `VelocityStore`, and three new
+dashboard views: `VelocityChartView` (cumulative Swift Charts against the
+goal path), `MonthInspectionView` (the day-by-day slider), and a rewritten
+`SummaryStatsView`.
+
+All seven acceptance criteria met. Checked live: adding manually logged items
+on different days moved the cumulative line, the goal path tracked
+`targetDailyVelocity` from Settings, switching the scope filter re-tinted the
+chart and re-ran every stat, and the month-inspection slider's badge list
+matched the feed for that day. Verified structurally through the accessibility
+tree (see D3 note below on why not by screenshot) plus 10 new store tests and
+6 aggregator tests — 96 tests passing project-wide.
+
+**Decisions**
+
+- **Aggregation is a pure `enum` of static functions, not a method on the
+  store.** It takes items, a month, and a calendar as parameters and returns
+  `[DailyVelocity]`; nothing about it needs the store's identity. Tested
+  without constructing a store at all.
+- **The series stops at today, not the end of the month.** A month padded
+  with zeroed future days would show a cumulative line dropping to flat
+  nothing at the right edge — accurate but useless. `lastDay` clamps it.
+- **The goal path is two points, not one per day.** A straight line from
+  `(day 1, 0)` to `(today, cumulativeTarget(throughDay: today))` is the same
+  target rate `VelocityGoal` already computes; `LineMark` draws the line
+  between them for free.
+- **Chart color follows the scope filter**, not a fixed palette — work is
+  indigo, personal is green, "All Projects" is blue. The legend is a small
+  custom row rather than Swift Charts' built-in legend, because the built-in
+  one wants a `foregroundStyle(by:)` series mapping and there are only ever
+  two lines to label.
+- **Month inspection has no separate month switcher.** The README's "monthly
+  filtering" task reads as scoping the data to the calendar month, which the
+  aggregator already does; the design reference only shows a day slider
+  within the current month, not a month picker. Easy to add later if a user
+  wants to look back at August.
+- **The badge list is a small custom `Layout`, not a horizontal scroll
+  view.** Wrapping to a second line reads as "everything shipped that day" at
+  a glance; a scroll view hides items off the right edge.
+- **Summary tiles now show Avg Velocity / Delivered / Target Goal for the
+  month, replacing the Phase 4 today-only tiles** — this was D7, and closes
+  it. "Shipped Today" is still available in the menu-bar panel, which is the
+  right place for a same-day glance.
+- **`inspectedDay` is dashboard view state on the store, like `scopeFilter`**
+  — not persisted, and not a `@State` local to `DashboardView`, because the
+  chart and the inspection panel both need to read and drive it.
+
 ---
 
 ## Deferred work
@@ -192,11 +241,11 @@ Known and intentional. Each item names the phase that should pick it up.
 |---|---|---|---|
 | D1 | Opening Settings triggers a save with no edit — the `TextField` number binding writes back a normalised value on appearance, tripping `settings.didSet` | Harmless today: the write is atomic and idempotent. Wants a real fix (commit-on-change binding, or compare before assigning), not a workaround | 7 |
 | D2 | `PersistenceService.export(to:)` exists and is tested, but has no menu item or save panel | The service method was two lines next to `save`; the UI is an export feature | 7 |
-| D3 | Menu-bar panel exposes `missing value` for `AXTitle`/`AXValue` under System Events | May be a SwiftUI panel quirk rather than a real defect. Needs checking with VoiceOver, not with a script | 7 |
+| D3 | Menu-bar panel exposes `missing value` for `AXTitle`/`AXValue` under System Events. The Phase 5 summary tiles show the same symptom (`AXUnknown`, no label) despite an explicit `.accessibilityLabel`/`.accessibilityValue` | May be a SwiftUI panel/window quirk rather than a real defect. Needs checking with VoiceOver, not with a script | 7 |
 | D4 | ~~Repository management UI~~ — **done in Phase 3** | — | ✅ |
 | D5 | ~~"Scan Repositories" in the menu bar~~ — **done in Phase 3** | — | ✅ |
 | D6 | ~~"Quick Log" in the menu bar~~ — **done in Phase 4** | — | ✅ |
-| D7 | Dashboard chart is placeholder copy; summary tiles are today-only | Month aggregation, cumulative totals, and the goal path arrive with the chart that consumes them | 5 |
+| D7 | ~~Dashboard chart is placeholder copy; summary tiles are today-only~~ — **done in Phase 5** | — | ✅ |
 | D8 | `AppIcon.appiconset` is empty, so the app ships with the generic icon | Packaging concern | 8 |
 | D9 | ~~No repositories tab~~ — **done in Phase 3** | — | ✅ |
 | D10 | ~~Scanned commits never reach the feed~~ — **done in Phase 4** | — | ✅ |
