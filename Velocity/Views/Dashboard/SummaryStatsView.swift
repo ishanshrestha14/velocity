@@ -49,8 +49,10 @@ private struct StatTile: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(label)
-        .accessibilityValue("\(value) \(unit)")
+        // `.combine` reads as one static-text element carrying every child's
+        // text — unlike `.ignore` with an explicit label/value, which System
+        // Events reported as an unlabeled `AXUnknown` element in this
+        // window (see PROGRESS.md D3).
+        .accessibilityElement(children: .combine)
     }
 }
