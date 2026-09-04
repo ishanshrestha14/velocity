@@ -15,7 +15,14 @@ final class VelocityStore {
     private(set) var shippedItems: [ShippedItem] = []
     private(set) var repositories: [Repository] = []
     var settings: VelocitySettings = .default {
-        didSet { scheduleSaveIfLoaded() }
+        didSet {
+            scheduleSaveIfLoaded()
+            if hasLoaded,
+               oldValue.isBackgroundScanningEnabled != settings.isBackgroundScanningEnabled
+                   || oldValue.scanIntervalMinutes != settings.scanIntervalMinutes {
+                restartBackgroundScanning()
+            }
+        }
     }
 
     // MARK: - View state (never persisted)
@@ -97,14 +104,15 @@ final class VelocityStore {
 
     /// Read stored state from disk. Called once at launch.
     func load() async {
-        guard let persistence else {
-            hasLoaded = true
-            return
+        if let persistence {
+            let result = await persistence.load()
+            applyLoaded(result.data)
+            persistenceError = result.error
         }
-        let result = await persistence.load()
-        applyLoaded(result.data)
-        persistenceError = result.error
         hasLoaded = true
+
+        if canScan { await scanRepositories() }
+        restartBackgroundScanning()
     }
 
     func dismissPersistenceError() {
@@ -352,6 +360,45 @@ final class VelocityStore {
         }
         settings.gitAuthorEmail = email
         return true
+    }
+
+    // MARK: - Background scanning
+
+    private var backgroundScanTask: Task<Void, Never>?
+
+    /// Whether the periodic background loop is currently running. Exposed for
+    /// the settings UI and for tests — the loop itself has no other visible
+    /// state between scans.
+    var isBackgroundScanning: Bool { backgroundScanTask != nil }
+
+    /// When the most recent scan — background or manual — finished.
+    var lastScanAt: Date? { lastScanReport?.finishedAt }
+
+    /// (Re)start the periodic scan loop from the current settings. Cancels
+    /// any loop already running, so this is safe to call whenever the
+    /// interval or the on/off switch changes, not just at launch.
+    func restartBackgroundScanning() {
+        backgroundScanTask?.cancel()
+        backgroundScanTask = nil
+        guard settings.isBackgroundScanningEnabled else { return }
+
+        let minutes = max(settings.scanIntervalMinutes, VelocitySettings.minimumScanIntervalMinutes)
+        let interval = Duration.seconds(minutes * 60)
+        backgroundScanTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: interval)
+                guard !Task.isCancelled, let self else { return }
+                if self.canScan { await self.scanRepositories() }
+            }
+        }
+    }
+
+    /// Scan once if the menu-bar panel is configured to do so on open.
+    /// A no-op while a scan is already running, so opening the panel twice
+    /// in a row cannot queue a second scan behind the first.
+    func scanOnMenuOpenIfEnabled() {
+        guard settings.scanOnMenuOpen, !isScanning else { return }
+        Task { await scanRepositories() }
     }
 
     // MARK: - Derived reads
