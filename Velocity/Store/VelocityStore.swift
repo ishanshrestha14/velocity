@@ -22,6 +22,9 @@ final class VelocityStore {
                    || oldValue.scanIntervalMinutes != settings.scanIntervalMinutes {
                 restartBackgroundScanning()
             }
+            if hasLoaded, !oldValue.notifyOnScanResults, settings.notifyOnScanResults {
+                notifier?.requestAuthorizationIfNeeded()
+            }
         }
     }
 
@@ -62,6 +65,7 @@ final class VelocityStore {
 
     private let persistence: PersistenceService?
     private let scanner: GitScanner?
+    private let notifier: ScanNotifier?
     private let scoringEngine = ScoringEngine()
     private var saveTask: Task<Void, Never>?
 
@@ -74,11 +78,13 @@ final class VelocityStore {
     init(
         persistence: PersistenceService? = nil,
         scanner: GitScanner? = nil,
+        notifier: ScanNotifier? = nil,
         data: VelocityData = .empty,
         startupError: PersistenceError? = nil
     ) {
         self.persistence = persistence
         self.scanner = scanner
+        self.notifier = notifier
         self.persistenceError = startupError
         applyLoaded(data)
     }
@@ -358,6 +364,13 @@ final class VelocityStore {
             } else {
                 AppLog.scan.info("\(result.repositoryName, privacy: .public): \(result.matchingCommits) mine, \(result.newCommits.count) new")
             }
+        }
+
+        if settings.notifyOnScanResults {
+            notifier?.notify(
+                newCommitCount: report.newCommits.count,
+                failedRepositoryCount: report.failedRepositories.count
+            )
         }
     }
 

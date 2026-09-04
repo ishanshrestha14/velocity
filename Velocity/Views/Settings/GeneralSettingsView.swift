@@ -52,6 +52,9 @@ struct GeneralSettingsView: View {
 
                 Toggle("Scan when the menu bar opens", isOn: $store.settings.scanOnMenuOpen)
                     .help("Also scan the moment the menu-bar panel is opened, in addition to the timer.")
+
+                Toggle("Notify when a scan finds something", isOn: $store.settings.notifyOnScanResults)
+                    .help("Post a system notification when a scan imports commits or a repository fails.")
             } header: {
                 Text("Automation")
             } footer: {

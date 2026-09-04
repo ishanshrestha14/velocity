@@ -17,6 +17,10 @@ struct VelocitySettings: Codable, Hashable, Sendable {
     /// Scan once whenever the menu-bar panel is opened, in addition to the
     /// interval above.
     var scanOnMenuOpen: Bool
+    /// Post a system notification when a scan imports commits or a
+    /// repository fails. Off by default — notifications are an opt-in, not
+    /// something a first launch should ask permission for unprompted.
+    var notifyOnScanResults: Bool
 
     static let defaultScanIntervalMinutes = 30
     static let minimumScanIntervalMinutes = 5
@@ -26,27 +30,30 @@ struct VelocitySettings: Codable, Hashable, Sendable {
         gitAuthorEmail: String = "",
         isBackgroundScanningEnabled: Bool = true,
         scanIntervalMinutes: Int = VelocitySettings.defaultScanIntervalMinutes,
-        scanOnMenuOpen: Bool = false
+        scanOnMenuOpen: Bool = false,
+        notifyOnScanResults: Bool = false
     ) {
         self.targetDailyVelocity = targetDailyVelocity
         self.gitAuthorEmail = gitAuthorEmail
         self.isBackgroundScanningEnabled = isBackgroundScanningEnabled
         self.scanIntervalMinutes = scanIntervalMinutes
         self.scanOnMenuOpen = scanOnMenuOpen
+        self.notifyOnScanResults = notifyOnScanResults
     }
 
     static let `default` = VelocitySettings()
 
     // MARK: - Codable
 
-    // Hand-written rather than synthesized: the three automation fields were
-    // added in Phase 6, and a settings file saved before then has none of
-    // them. Missing keys fall back to their defaults instead of failing the
-    // whole document — a decode failure quarantines the entire data file
-    // (see `PersistenceService.load`), which would silently wipe an existing
+    // Hand-written rather than synthesized: the automation fields were added
+    // after v1, and a settings file saved before then has none of them.
+    // Missing keys fall back to their defaults instead of failing the whole
+    // document — a decode failure quarantines the entire data file (see
+    // `PersistenceService.load`), which would silently wipe an existing
     // user's items and repositories just for gaining an unrelated feature.
     private enum CodingKeys: String, CodingKey {
         case targetDailyVelocity, gitAuthorEmail, isBackgroundScanningEnabled, scanIntervalMinutes, scanOnMenuOpen
+        case notifyOnScanResults
     }
 
     init(from decoder: Decoder) throws {
@@ -62,5 +69,7 @@ struct VelocitySettings: Codable, Hashable, Sendable {
             ?? fallback.scanIntervalMinutes
         scanOnMenuOpen = try container.decodeIfPresent(Bool.self, forKey: .scanOnMenuOpen)
             ?? fallback.scanOnMenuOpen
+        notifyOnScanResults = try container.decodeIfPresent(Bool.self, forKey: .notifyOnScanResults)
+            ?? fallback.notifyOnScanResults
     }
 }

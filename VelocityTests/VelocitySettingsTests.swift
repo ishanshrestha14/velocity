@@ -17,6 +17,7 @@ struct VelocitySettingsTests {
         #expect(decoded.isBackgroundScanningEnabled == VelocitySettings.default.isBackgroundScanningEnabled)
         #expect(decoded.scanIntervalMinutes == VelocitySettings.defaultScanIntervalMinutes)
         #expect(decoded.scanOnMenuOpen == false)
+        #expect(decoded.notifyOnScanResults == false)
     }
 
     @Test func roundTripsThroughJSON() throws {
@@ -25,7 +26,8 @@ struct VelocitySettingsTests {
             gitAuthorEmail: "me@example.com",
             isBackgroundScanningEnabled: false,
             scanIntervalMinutes: 15,
-            scanOnMenuOpen: true
+            scanOnMenuOpen: true,
+            notifyOnScanResults: true
         )
 
         let data = try JSONEncoder().encode(original)

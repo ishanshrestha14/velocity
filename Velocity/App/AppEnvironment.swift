@@ -20,15 +20,17 @@ final class AppEnvironment {
         // A machine without the command line tools still gets a working app;
         // scanning is simply unavailable and says so.
         let scanner = try? GitScanner.locate()
+        let notifier = ScanNotifier()
 
         let store: VelocityStore
         do {
-            store = VelocityStore(persistence: try PersistenceService(), scanner: scanner)
+            store = VelocityStore(persistence: try PersistenceService(), scanner: scanner, notifier: notifier)
         } catch {
             // Without a data folder the app still runs, but the user is told
             // that nothing will be saved rather than losing work silently.
             store = VelocityStore(
                 scanner: scanner,
+                notifier: notifier,
                 startupError: .directoryUnavailable(error.localizedDescription)
             )
         }
