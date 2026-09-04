@@ -1,8 +1,11 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct GeneralSettingsView: View {
     @Environment(AppEnvironment.self) private var appEnvironment
     @State private var detectFailed = false
+    @State private var exportError: String?
 
     var body: some View {
         @Bindable var store = appEnvironment.store
@@ -78,6 +81,19 @@ struct GeneralSettingsView: View {
                         .disabled(store.dataDirectoryURL == nil)
                     }
                 }
+
+                LabeledContent("Export a copy") {
+                    Button("Export…") {
+                        exportToChosenFile(store: store)
+                    }
+                    .help("Save everything Velocity has recorded as a standalone JSON file.")
+                }
+
+                if let exportError {
+                    Text(exportError)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             } header: {
                 Text("Data")
             } footer: {
@@ -88,5 +104,27 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 480)
+    }
+
+    /// Presents a save panel, then writes the export off the main actor once
+    /// the user has chosen where. Declined panels leave `exportError` alone.
+    private func exportToChosenFile(store: VelocityStore) {
+        let panel = NSSavePanel()
+        panel.title = "Export Velocity Data"
+        panel.nameFieldStringValue = "velocity-export.json"
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            Task {
+                do {
+                    try await store.export(to: url)
+                    exportError = nil
+                } catch {
+                    exportError = error.localizedDescription
+                }
+            }
+        }
     }
 }
