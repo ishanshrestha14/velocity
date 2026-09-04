@@ -17,7 +17,7 @@ Nothing gets deferred without landing in that table.
 | 4 | Scoring Engine + Quick Log | ✅ Complete |
 | 5 | Dashboard + Swift Charts | ✅ Complete |
 | 6 | Repository Automation | ✅ Complete |
-| 7 | Native macOS Polish | ⬜ Not started |
+| 7 | Native macOS Polish | ✅ Complete |
 | 8 | Reliability, Packaging & Release | ⬜ Not started |
 
 Current state: the app is useful end to end. It reads commits out of configured
@@ -284,6 +284,74 @@ further was needed for them here.
   from the timer is already running should not start a second one racing
   the first.
 
+## Phase 7 — Native macOS Polish ✅
+
+Export to a standalone file, optional scan notifications, a Cmd+R scan
+shortcut, loading states for the dashboard and menu bar, a fix for D1's
+spurious settings writes, and an accessibility pass on the dashboard's
+summary tiles and the menu bar's buttons.
+
+Checked live via the accessibility tree (build/test automation has no real
+display in this environment, so nothing here was screenshotted): the
+Settings General tab shows every new control (automation toggles, the
+interval stepper, notify toggle, Export… button) with correct titles and
+values; the dashboard's stat tiles now read as real text (`"Avg Velocity, 0,
+/day"`) instead of unlabeled elements. 111 tests passing project-wide (10 new
+this phase: 4 `ScanNotifier.body` cases, 2 export cases, and 4
+settings-decoding/round-trip updates for the new fields).
+
+**Decisions**
+
+- **Export uses `NSSavePanel` directly, not SwiftUI's `.fileExporter`.**
+  `.fileExporter` wants a `FileDocument` wrapper around data Velocity already
+  has as `VelocityData` via `JSONStore`; a panel plus `PersistenceService
+  .export` (already written and tested in an earlier phase) is the same
+  result with no adapter type. This is an AppKit-adjacent, macOS-only app
+  already (`NSWorkspace`, `NSApplication`) — one more AppKit call is not a
+  new kind of dependency. Closes D2.
+- **`ScanNotifier` is a plain `@MainActor` class, not behind a protocol.**
+  Every other optional dependency on `VelocityStore` — `PersistenceService`,
+  `GitScanner` — is injected as a concrete optional and simply left `nil` in
+  tests; a notifier protocol would be the only one of the four built for
+  mockability nothing else needed. Its message-building is a `nonisolated
+  static func` precisely so *that* part is unit-testable without touching
+  `UNUserNotificationCenter` at all.
+- **Notifications are silent about "nothing found."** A scan that imports
+  nothing and fails nothing posts no notification — alerting for a no-op
+  scan trains the user to dismiss Velocity's notifications on sight, which
+  defeats the feature the first time it happens to matter.
+- **The D1 fix is `guard oldValue != settings else { return }`**, not a
+  binding change on the `TextField`. `VelocitySettings` was already
+  `Hashable` (`Equatable` comes free); comparing whole-struct equality before
+  any side effect is the actual fix the deferred item asked for, not a
+  workaround around one field.
+- **The dashboard's summary tiles now use
+  `.accessibilityElement(children: .combine)`** instead of `.ignore` with a
+  manual label/value — confirmed live that System Events now reports real
+  `AXStaticText` content where it previously reported `AXUnknown` with
+  `missing value`. This closes the dashboard half of D3.
+- **The menu-bar panel's buttons remain unresolved.** Adding an explicit
+  `.accessibilityLabel` to each (correct, and kept) made no difference to
+  what System Events reports for them — still no `AXTitle`/`AXDescription`.
+  Since the identical technique fixed the dashboard's tiles in a plain
+  `Window` scene, this looks like a `MenuBarExtra(.window)`-specific
+  accessibility-bridging limitation rather than something fixable from
+  application code. Needs checking with real VoiceOver, which reads a
+  different part of the accessibility API than System Events' scripting
+  bridge and may not show the same gap — left in D3, narrowed to the menu
+  bar specifically.
+- **Dark/light appearance was validated by code audit, not by toggling
+  system appearance.** A grep across the view layer found zero hardcoded
+  `Color(...)`/`NSColor(...)` literals — every color is a semantic system
+  color (`.green`, `.secondary`, `.quaternary`, `.regularMaterial`, …) or a
+  scope-driven tint already covered by Phase 5's chart decisions, all of
+  which adapt automatically. Flipping the whole machine's system appearance
+  for a one-off visual check felt like the wrong tradeoff for what the code
+  already guarantees structurally.
+- **A loading state was added to both the dashboard and the menu bar**,
+  gated on `store.hasLoaded`, so neither one can flash "nothing shipped" in
+  the moment before the on-disk snapshot has actually been read.
+
 ---
 
 ## Deferred work
@@ -292,9 +360,9 @@ Known and intentional. Each item names the phase that should pick it up.
 
 | # | Item | Why it is not done yet | Target |
 |---|---|---|---|
-| D1 | Opening Settings triggers a save with no edit — the `TextField` number binding writes back a normalised value on appearance, tripping `settings.didSet` | Harmless today: the write is atomic and idempotent. Wants a real fix (commit-on-change binding, or compare before assigning), not a workaround | 7 |
-| D2 | `PersistenceService.export(to:)` exists and is tested, but has no menu item or save panel | The service method was two lines next to `save`; the UI is an export feature | 7 |
-| D3 | Menu-bar panel exposes `missing value` for `AXTitle`/`AXValue` under System Events. The Phase 5 summary tiles show the same symptom (`AXUnknown`, no label) despite an explicit `.accessibilityLabel`/`.accessibilityValue` | May be a SwiftUI panel/window quirk rather than a real defect. Needs checking with VoiceOver, not with a script | 7 |
+| D1 | ~~Opening Settings triggers a save with no edit~~ — **done in Phase 7**: `settings.didSet` now compares `oldValue` first | — | ✅ |
+| D2 | ~~`PersistenceService.export(to:)` had no menu item or save panel~~ — **done in Phase 7** | — | ✅ |
+| D3 | Menu-bar panel's buttons still expose no `AXTitle`/`AXDescription` under System Events, even with an explicit `.accessibilityLabel` (the dashboard's tiles were fixed in Phase 7 via `.accessibilityElement(children: .combine)` — same trick made no difference here) | Looks specific to `MenuBarExtra(.window)`'s accessibility bridging rather than fixable from application code. Needs checking with real VoiceOver, not System Events' scripting bridge | 8 |
 | D4 | ~~Repository management UI~~ — **done in Phase 3** | — | ✅ |
 | D5 | ~~"Scan Repositories" in the menu bar~~ — **done in Phase 3** | — | ✅ |
 | D6 | ~~"Quick Log" in the menu bar~~ — **done in Phase 4** | — | ✅ |
