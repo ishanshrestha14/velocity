@@ -1,32 +1,30 @@
 import SwiftUI
 
-/// Today's totals for the selected scope.
-///
-/// Month-level statistics (average velocity, monthly target, cumulative
-/// progress) are derived from aggregation logic added alongside the chart.
+/// This month's headline numbers for the selected scope: how fast, how much,
+/// and against what target.
 struct SummaryStatsView: View {
-    let points: Int
-    let itemCount: Int
-    let targetDailyVelocity: Double
+    let averageVelocity: Double
+    let delivered: Int
+    let targetGoal: Double
 
     var body: some View {
         HStack(spacing: 12) {
             StatTile(
-                label: "Shipped Today",
-                value: "\(points)",
-                unit: points == 1 ? "point" : "points",
-                tint: .green
-            )
-            StatTile(
-                label: "Items Today",
-                value: "\(itemCount)",
-                unit: itemCount == 1 ? "item" : "items",
+                label: "Avg Velocity",
+                value: averageVelocity.formatted(.number.precision(.fractionLength(0...1))),
+                unit: "/day",
                 tint: .primary
             )
             StatTile(
-                label: "Daily Target",
-                value: targetDailyVelocity.formatted(.number.precision(.fractionLength(0...2))),
-                unit: "per day",
+                label: "Delivered",
+                value: "\(delivered)",
+                unit: delivered == 1 ? "point" : "points",
+                tint: .green
+            )
+            StatTile(
+                label: "Target Goal",
+                value: targetGoal.formatted(.number.precision(.fractionLength(0...1))),
+                unit: "points",
                 tint: .yellow
             )
         }
