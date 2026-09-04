@@ -63,7 +63,12 @@ struct MenuBarView: View {
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
 
-            if items.isEmpty {
+            if !store.hasLoaded {
+                Text("Loading…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 2)
+            } else if items.isEmpty {
                 Text("Nothing shipped yet today.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
