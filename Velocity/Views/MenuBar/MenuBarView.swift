@@ -102,6 +102,7 @@ struct MenuBarView: View {
                 MenuBarButtonLabel(title: "Settings…", systemImage: "gearshape")
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Settings…")
 
             Divider()
                 .padding(.vertical, 4)
@@ -195,6 +196,11 @@ private struct MenuBarButton: View {
             MenuBarButtonLabel(title: title, systemImage: systemImage)
         }
         .buttonStyle(.plain)
+        // The hover-highlight background and hidden native label make this
+        // read as an unnamed AXButton to System Events without an explicit
+        // label — the automatic inference from `Label`'s text does not carry
+        // through a fully custom-styled button (see PROGRESS.md D3).
+        .accessibilityLabel(title)
     }
 }
 
