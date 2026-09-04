@@ -16,6 +16,10 @@ final class VelocityStore {
     private(set) var repositories: [Repository] = []
     var settings: VelocitySettings = .default {
         didSet {
+            // A formatted TextField writes back its normalized value the
+            // moment it appears, which used to trip every side effect below
+            // for a value that never actually changed (D1).
+            guard oldValue != settings else { return }
             scheduleSaveIfLoaded()
             if hasLoaded,
                oldValue.isBackgroundScanningEnabled != settings.isBackgroundScanningEnabled
