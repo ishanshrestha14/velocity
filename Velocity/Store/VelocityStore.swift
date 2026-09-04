@@ -23,6 +23,11 @@ final class VelocityStore {
     /// Dashboard scope filter. Analytics-only: it never alters stored data.
     var scopeFilter: ScopeFilter = .all
 
+    /// Day of the current month shown by the dashboard's month-inspection
+    /// slider. View state only — it never alters stored data, and defaults to
+    /// today so the dashboard opens showing the most recent progress.
+    var inspectedDay: Int = Calendar.current.component(.day, from: .now)
+
     /// Set when loading or saving failed. The UI surfaces this rather than
     /// letting a data problem pass unnoticed.
     private(set) var persistenceError: PersistenceError?
@@ -367,5 +372,49 @@ final class VelocityStore {
 
     func pointsShippedToday(now: Date = .now, calendar: Calendar = .current) -> Int {
         itemsShippedToday(now: now, calendar: calendar).reduce(0) { $0 + $1.points }
+    }
+
+    // MARK: - Monthly analytics
+
+    /// How many days of the current month have happened so far. The series
+    /// stops here rather than padding in future days with zeroed points.
+    func daysElapsedThisMonth(now: Date = .now, calendar: Calendar = .current) -> Int {
+        calendar.component(.day, from: now)
+    }
+
+    /// Cumulative daily series for the current month, filtered to
+    /// `scopeFilter`, through today. Drives the dashboard chart.
+    func monthlyVelocities(now: Date = .now, calendar: Calendar = .current) -> [DailyVelocity] {
+        VelocityAggregator.dailyVelocities(
+            items: filteredItems,
+            month: now,
+            lastDay: daysElapsedThisMonth(now: now, calendar: calendar),
+            calendar: calendar
+        )
+    }
+
+    /// The target path for the current month at the configured daily rate.
+    func monthlyGoal(now: Date = .now, calendar: Calendar = .current) -> VelocityGoal {
+        VelocityGoal(
+            targetDailyVelocity: settings.targetDailyVelocity,
+            daysInMonth: calendar.range(of: .day, in: .month, for: now)?.count ?? 30
+        )
+    }
+
+    /// Average points per day shipped so far this month, for the current
+    /// scope filter.
+    func averageDailyVelocity(now: Date = .now, calendar: Calendar = .current) -> Double {
+        let series = monthlyVelocities(now: now, calendar: calendar)
+        guard let last = series.last, last.day > 0 else { return 0 }
+        return Double(last.cumulativePoints) / Double(last.day)
+    }
+
+    /// Items shipped on `day` of the current month, for the current scope
+    /// filter. Backs the month-inspection slider's "delivered on day N" list.
+    func items(shippedOnDay day: Int, now: Date = .now, calendar: Calendar = .current) -> [ShippedItem] {
+        filteredItems.filter {
+            calendar.isDate($0.timestamp, equalTo: now, toGranularity: .month)
+                && calendar.component(.day, from: $0.timestamp) == day
+        }
     }
 }

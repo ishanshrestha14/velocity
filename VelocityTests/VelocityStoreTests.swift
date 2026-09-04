@@ -74,6 +74,50 @@ struct VelocityStoreTests {
         #expect(store.shippedItems.isEmpty)
     }
 
+    @Test func monthlyVelocitiesAccumulateThroughToday() {
+        let store = VelocityStore()
+        store.add(contentsOf: [
+            item(id: "a", daysAgo: 2, weight: .core),
+            item(id: "b", daysAgo: 1, weight: .epic),
+            item(id: "c", daysAgo: 0, weight: .minor),
+        ])
+
+        let series = store.monthlyVelocities()
+        #expect(series.count == store.daysElapsedThisMonth())
+        #expect(series.last?.cumulativePoints == 9)
+        #expect(series.last?.day == store.daysElapsedThisMonth())
+    }
+
+    @Test func monthlyVelocitiesRespectTheScopeFilter() {
+        let store = VelocityStore()
+        store.add(contentsOf: [
+            item(id: "w", scope: .work, weight: .epic),
+            item(id: "p", scope: .personal, weight: .minor),
+        ])
+        store.scopeFilter = .work
+
+        #expect(store.monthlyVelocities().last?.cumulativePoints == 5)
+    }
+
+    @Test func averageDailyVelocityDividesByDaysElapsed() {
+        let store = VelocityStore()
+        store.add(item(id: "a", daysAgo: 0, weight: .core))
+
+        let expected = 3.0 / Double(store.daysElapsedThisMonth())
+        #expect(store.averageDailyVelocity() == expected)
+    }
+
+    @Test func itemsShippedOnDayFiltersByDayOfMonthAndScope() {
+        let store = VelocityStore()
+        store.add(contentsOf: [
+            item(id: "today", daysAgo: 0, scope: .personal),
+            item(id: "yesterday", daysAgo: 1, scope: .personal),
+        ])
+        let today = store.daysElapsedThisMonth()
+
+        #expect(store.items(shippedOnDay: today).map(\.id) == ["today"])
+    }
+
     @Test func snapshotRoundTripsThroughJSON() throws {
         let store = VelocityStore()
         store.add(item(id: "sha-a", title: "feat: thing", weight: .core))
