@@ -16,7 +16,7 @@ Nothing gets deferred without landing in that table.
 | 3 | Git Engine | ✅ Complete |
 | 4 | Scoring Engine + Quick Log | ✅ Complete |
 | 5 | Dashboard + Swift Charts | ✅ Complete |
-| 6 | Repository Automation | ⬜ Not started |
+| 6 | Repository Automation | ✅ Complete |
 | 7 | Native macOS Polish | ⬜ Not started |
 | 8 | Reliability, Packaging & Release | ⬜ Not started |
 
@@ -230,6 +230,59 @@ tree (see D3 note below on why not by screenshot) plus 10 new store tests and
 - **`inspectedDay` is dashboard view state on the store, like `scopeFilter`**
   — not persisted, and not a `@State` local to `DashboardView`, because the
   chart and the inspection panel both need to read and drive it.
+
+## Phase 6 — Repository Automation ✅
+
+Background scanning on `VelocityStore`: a scan on launch, then a periodic
+loop at a configurable interval; an optional scan when the menu-bar panel
+opens; a scan-status dot and relative last-scanned timestamp in the menu bar;
+and an Automation section in Settings.
+
+All five acceptance criteria met. Checked live: the app scans once at launch
+without being asked, the menu-bar panel's status line and dot update through
+scanning → clean/error, and toggling "Scan automatically" or changing the
+interval in Settings visibly restarts the loop (`isBackgroundScanning`
+flips). 8 new tests (2 settings-decoding, 6 background-scanning), 105 tests
+passing project-wide. Two of the nine README tasks — repository enable/disable
+and automatic Work/Personal assignment — were already done in Phase 3, since
+`Repository.enabled` and `Repository.scope` existed from the start; nothing
+further was needed for them here.
+
+**Decisions**
+
+- **`VelocitySettings.init(from:)` is hand-written, not synthesized.** The
+  three new automation fields are absent from any settings file saved before
+  this phase, and a synthesized decoder would throw on a missing key —
+  failing the whole `VelocityData` decode and quarantining an existing
+  user's items and repositories (`PersistenceService.load` treats a decode
+  failure as "start over"). Missing keys now fall back to
+  `VelocitySettings.default`'s values instead. Same reasoning as `VelocityData
+  .currentVersion` existing at all — this is the same problem one field
+  sooner.
+- **The scan loop lives directly on `VelocityStore`, not a separate
+  scheduler type.** It is one `Task` that sleeps and calls the store's own
+  `scanRepositories()`, following the same pattern already used for debounced
+  saving (`saveTask`). A separate service would need the same store
+  reference back to do anything.
+- **Only `isBackgroundScanningEnabled` and `scanIntervalMinutes` restart the
+  loop.** `settings.didSet` compares `oldValue` against the new value and
+  restarts only on those two fields — editing the target velocity or the
+  author email must not reset an in-flight sleep and push a due scan
+  further out.
+- **The interval is clamped to a 5-minute minimum**, both when read by the
+  scheduler and by the Settings stepper's range. Git scanning is cheap at
+  this project's scale, but nothing stops a stray `0` from turning "every
+  interval" into "constantly."
+- **No test exercises the loop actually firing.** `Task.sleep` for a real
+  30-minute interval is not something a unit test should wait out, and
+  faking the clock would need a second code path just for tests. Instead the
+  tests check the state the loop's lifecycle produces —
+  `isBackgroundScanning` — after `restartBackgroundScanning()`, load, and
+  settings changes.
+- **Scan-on-menu-open guards against overlapping an in-progress scan**
+  (`!isScanning`) rather than queuing one — opening the panel while a scan
+  from the timer is already running should not start a second one racing
+  the first.
 
 ---
 
