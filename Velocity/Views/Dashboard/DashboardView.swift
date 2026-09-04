@@ -1,15 +1,15 @@
 import SwiftUI
 
-/// The main analytics window. Phase 1 establishes the layout, the scope filter,
-/// and the feed; the cumulative Swift Charts view and month inspection land with
-/// the aggregation logic that feeds them.
+/// The main analytics window: this month's cumulative chart against the goal
+/// path, headline stats, a day-by-day inspector, and the full shipped feed.
 struct DashboardView: View {
     @Environment(AppEnvironment.self) private var appEnvironment
 
     var body: some View {
         @Bindable var store = appEnvironment.store
         let items = store.filteredItems
-        let todayItems = store.itemsShippedToday().filter { store.scopeFilter.matches($0.scope) }
+        let series = store.monthlyVelocities()
+        let maxDay = max(store.daysElapsedThisMonth(), 1)
 
         VStack(alignment: .leading, spacing: 16) {
             header(store: store)
@@ -23,13 +23,30 @@ struct DashboardView: View {
             }
 
             SummaryStatsView(
-                points: todayItems.reduce(0) { $0 + $1.points },
-                itemCount: todayItems.count,
-                targetDailyVelocity: store.settings.targetDailyVelocity
+                averageVelocity: store.averageDailyVelocity(),
+                delivered: store.filteredItems.reduce(0) { $0 + $1.points },
+                targetGoal: store.monthlyGoal().monthlyTarget
             )
 
             DashboardCard(title: "Cumulative Velocity") {
-                ChartPlaceholder()
+                VelocityChartView(
+                    series: series,
+                    goal: store.monthlyGoal(),
+                    scopeFilter: store.scopeFilter,
+                    inspectedDay: min(store.inspectedDay, maxDay)
+                )
+            }
+
+            DashboardCard {
+                MonthInspectionView(
+                    day: Binding(
+                        get: { min(store.inspectedDay, maxDay) },
+                        set: { store.inspectedDay = $0 }
+                    ),
+                    maxDay: maxDay,
+                    items: store.items(shippedOnDay: min(store.inspectedDay, maxDay)),
+                    dayLabel: dayLabel(for: min(store.inspectedDay, maxDay), in: series)
+                )
             }
 
             DashboardCard(title: "Shipped") {
@@ -46,6 +63,11 @@ struct DashboardView: View {
         .frame(minWidth: 720, minHeight: 560)
     }
 
+    private func dayLabel(for day: Int, in series: [DailyVelocity]) -> String {
+        guard let point = series.first(where: { $0.day == day }) else { return "Day \(day)" }
+        return point.date.formatted(.dateTime.month(.abbreviated).day())
+    }
+
     private func header(store: VelocityStore) -> some View {
         @Bindable var store = store
         return HStack(alignment: .center) {
@@ -60,22 +82,6 @@ struct DashboardView: View {
             Spacer()
             ProjectScopePicker(selection: $store.scopeFilter)
         }
-    }
-}
-
-/// Stands in for the Swift Charts view until real daily aggregation exists.
-/// Deliberately not a fake chart — it renders no invented data.
-private struct ChartPlaceholder: View {
-    var body: some View {
-        VStack(spacing: 6) {
-            Image(systemName: "chart.line.uptrend.xyaxis")
-                .font(.system(size: 24))
-                .foregroundStyle(.tertiary)
-            Text("The cumulative chart appears once shipped work is recorded.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, minHeight: 140)
     }
 }
 
