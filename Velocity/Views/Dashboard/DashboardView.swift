@@ -11,56 +11,62 @@ struct DashboardView: View {
         let series = store.monthlyVelocities()
         let maxDay = max(store.daysElapsedThisMonth(), 1)
 
-        VStack(alignment: .leading, spacing: 16) {
-            header(store: store)
+        // A window shrunk below the content's natural height must still
+        // reach every section, so the whole dashboard scrolls rather than
+        // clipping silently when it no longer fits.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header(store: store)
 
-            if let error = store.persistenceError {
-                PersistenceBanner(error: error) {
-                    store.dismissPersistenceError()
-                } onRevealBackups: {
-                    store.revealDataDirectory()
+                if let error = store.persistenceError {
+                    PersistenceBanner(error: error) {
+                        store.dismissPersistenceError()
+                    } onRevealBackups: {
+                        store.revealDataDirectory()
+                    }
+                }
+
+                SummaryStatsView(
+                    averageVelocity: store.averageDailyVelocity(),
+                    delivered: store.filteredItems.reduce(0) { $0 + $1.points },
+                    targetGoal: store.monthlyGoal().monthlyTarget
+                )
+
+                DashboardCard(title: "Cumulative Velocity") {
+                    VelocityChartView(
+                        series: series,
+                        goal: store.monthlyGoal(),
+                        scopeFilter: store.scopeFilter,
+                        inspectedDay: min(store.inspectedDay, maxDay)
+                    )
+                }
+
+                DashboardCard {
+                    MonthInspectionView(
+                        day: Binding(
+                            get: { min(store.inspectedDay, maxDay) },
+                            set: { store.inspectedDay = $0 }
+                        ),
+                        maxDay: maxDay,
+                        items: store.items(shippedOnDay: min(store.inspectedDay, maxDay)),
+                        dayLabel: dayLabel(for: min(store.inspectedDay, maxDay), in: series)
+                    )
+                }
+
+                DashboardCard(title: "Shipped") {
+                    ShippedFeedView(
+                        items: items,
+                        onDelete: { store.delete(id: $0) },
+                        onChangeWeight: { store.setWeight($1, forItemWith: $0) },
+                        onChangeScope: { store.setScope($1, forItemWith: $0) }
+                    )
+                    .frame(minHeight: 160)
                 }
             }
-
-            SummaryStatsView(
-                averageVelocity: store.averageDailyVelocity(),
-                delivered: store.filteredItems.reduce(0) { $0 + $1.points },
-                targetGoal: store.monthlyGoal().monthlyTarget
-            )
-
-            DashboardCard(title: "Cumulative Velocity") {
-                VelocityChartView(
-                    series: series,
-                    goal: store.monthlyGoal(),
-                    scopeFilter: store.scopeFilter,
-                    inspectedDay: min(store.inspectedDay, maxDay)
-                )
-            }
-
-            DashboardCard {
-                MonthInspectionView(
-                    day: Binding(
-                        get: { min(store.inspectedDay, maxDay) },
-                        set: { store.inspectedDay = $0 }
-                    ),
-                    maxDay: maxDay,
-                    items: store.items(shippedOnDay: min(store.inspectedDay, maxDay)),
-                    dayLabel: dayLabel(for: min(store.inspectedDay, maxDay), in: series)
-                )
-            }
-
-            DashboardCard(title: "Shipped") {
-                ShippedFeedView(
-                    items: items,
-                    onDelete: { store.delete(id: $0) },
-                    onChangeWeight: { store.setWeight($1, forItemWith: $0) },
-                    onChangeScope: { store.setScope($1, forItemWith: $0) }
-                )
-                .frame(minHeight: 160)
-            }
+            .padding(20)
+            .frame(minWidth: 720, alignment: .leading)
         }
-        .padding(20)
-        .frame(minWidth: 720, minHeight: 560)
+        .frame(minWidth: 720, minHeight: 360)
     }
 
     private func dayLabel(for day: Int, in series: [DailyVelocity]) -> String {
