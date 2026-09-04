@@ -36,6 +36,34 @@ struct GeneralSettingsView: View {
             }
 
             Section {
+                Toggle("Scan automatically", isOn: $store.settings.isBackgroundScanningEnabled)
+                    .help("Scan every enabled repository on a timer, without being asked.")
+
+                Stepper(
+                    "Every \(store.settings.scanIntervalMinutes) minutes",
+                    value: $store.settings.scanIntervalMinutes,
+                    in: VelocitySettings.minimumScanIntervalMinutes...180,
+                    step: 5
+                )
+                .disabled(!store.settings.isBackgroundScanningEnabled)
+
+                Toggle("Scan when the menu bar opens", isOn: $store.settings.scanOnMenuOpen)
+                    .help("Also scan the moment the menu-bar panel is opened, in addition to the timer.")
+            } header: {
+                Text("Automation")
+            } footer: {
+                if let lastScanAt = store.lastScanAt {
+                    Text("Last scanned \(lastScanAt.formatted(.relative(presentation: .named))).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Velocity has not scanned yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section {
                 LabeledContent("Stored at") {
                     HStack(spacing: 8) {
                         Text(store.dataDirectoryURL?.path(percentEncoded: false) ?? "Not available")
