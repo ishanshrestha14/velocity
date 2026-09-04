@@ -23,14 +23,21 @@ struct MenuBarView: View {
             actions
             if let status = scanStatus {
                 Divider()
-                Text(status)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
+                HStack(alignment: .top, spacing: 6) {
+                    ScanStatusIndicator(
+                        isScanning: store.isScanning,
+                        hasError: store.scanError != nil
+                    )
+                    Text(status)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
             }
         }
         .frame(width: 280)
+        .onAppear { store.scanOnMenuOpenIfEnabled() }
     }
 
     private var header: some View {
@@ -109,6 +116,9 @@ struct MenuBarView: View {
 
     /// One line about the last scan, or about what is stopping one.
     private var scanStatus: String? {
+        if store.isScanning {
+            return "Scanning…"
+        }
         if let error = store.scanError {
             return error.errorDescription
         }
@@ -116,10 +126,13 @@ struct MenuBarView: View {
             return store.canScan ? nil : "Add a repository and set your Git author email in Settings."
         }
         let imported = report.newCommits.count
-        var line = "Last scan: \(imported) commit\(imported == 1 ? "" : "s") imported"
+        var line = "\(imported) commit\(imported == 1 ? "" : "s") imported"
         let failed = report.failedRepositories.count
         if failed > 0 {
             line += " · \(failed) failed"
+        }
+        if let lastScanAt = store.lastScanAt {
+            line += " · \(lastScanAt.formatted(.relative(presentation: .named)))"
         }
         return line
     }
@@ -129,6 +142,29 @@ struct MenuBarView: View {
         // before its window can take focus.
         NSApplication.shared.activate(ignoringOtherApps: true)
         openWindow(id: WindowID.dashboard)
+    }
+}
+
+/// A small dot summarizing scan state at a glance: spinning while a scan
+/// runs, red on the last scan's error, green once it finished cleanly.
+private struct ScanStatusIndicator: View {
+    let isScanning: Bool
+    let hasError: Bool
+
+    var body: some View {
+        Group {
+            if isScanning {
+                ProgressView()
+                    .controlSize(.mini)
+            } else {
+                Circle()
+                    .fill(hasError ? Color.red : Color.green)
+                    .frame(width: 6, height: 6)
+            }
+        }
+        .frame(width: 10, height: 10)
+        .padding(.top, 3)
+        .accessibilityHidden(true)
     }
 }
 
