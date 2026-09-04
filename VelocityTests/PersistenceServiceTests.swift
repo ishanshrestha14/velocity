@@ -187,6 +187,27 @@ struct StorePersistenceTests {
         #expect(second.shippedItems.map(\.title) == ["Keep"])
     }
 
+    @Test func exportingWritesTheCurrentSnapshotToTheChosenFile() async throws {
+        let temp = try TempDirectory()
+        let service = PersistenceService(paths: temp.paths)
+        let store = VelocityStore(persistence: service)
+        await store.load()
+        store.add(ShippedItem.manual(title: "Shipped the thing", scope: .work, weight: .epic))
+
+        let destination = temp.url.appending(path: "export.json")
+        try await store.export(to: destination)
+
+        let exported = try JSONStore().decode(VelocityData.self, from: destination)
+        #expect(exported.items.map(\.title) == ["Shipped the thing"])
+    }
+
+    @Test func exportingWithoutAPersistenceLayerThrows() async {
+        let store = VelocityStore()
+        await #expect(throws: PersistenceError.self) {
+            try await store.export(to: URL(fileURLWithPath: "/tmp/velocity-export.json"))
+        }
+    }
+
     @Test func nothingIsWrittenBeforeTheLoadCompletes() async throws {
         let temp = try TempDirectory()
         let service = PersistenceService(paths: temp.paths)

@@ -131,6 +131,18 @@ final class VelocityStore {
         NSWorkspace.shared.activateFileViewerSelecting([dataDirectoryURL])
     }
 
+    // MARK: - Export
+
+    /// Write the current state to a file the user chose, independent of
+    /// where Velocity's own data lives. A standalone copy for backup or
+    /// sharing, not something the debounced autosave path touches.
+    func export(to url: URL) async throws {
+        guard let persistence else {
+            throw PersistenceError.writeFailed("Export is unavailable without a data folder.")
+        }
+        try await persistence.export(snapshot, to: url)
+    }
+
     // MARK: - Saving
 
     private func scheduleSaveIfLoaded() {
