@@ -32,6 +32,9 @@ struct VelocityApp: App {
             CommandGroup(after: .windowArrangement) {
                 OpenDashboardCommand()
             }
+            CommandGroup(after: .toolbar) {
+                ScanRepositoriesCommand(environment: environment)
+            }
         }
 
         Settings {
@@ -65,6 +68,20 @@ private struct OpenDashboardCommand: View {
             openWindow(id: WindowID.dashboard)
         }
         .keyboardShortcut("d", modifiers: .command)
+    }
+}
+
+/// Menu command + keyboard shortcut to trigger a scan without opening the
+/// menu-bar panel first.
+private struct ScanRepositoriesCommand: View {
+    let environment: AppEnvironment
+
+    var body: some View {
+        Button("Scan Repositories") {
+            Task { await environment.store.scanRepositories() }
+        }
+        .keyboardShortcut("r", modifiers: .command)
+        .disabled(environment.store.isScanning || !environment.store.canScan)
     }
 }
 
