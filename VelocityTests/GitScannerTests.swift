@@ -311,6 +311,36 @@ struct GitRepositoryValidatorTests {
         }
     }
 
+    @Test func rejectsAFolderWithNoGitDirectory() async throws {
+        let runner = try GitRunner.locate()
+        let folder = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "VelocityFolder-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let path = folder.path(percentEncoded: false)
+        await #expect(throws: GitError.notARepository(path: path)) {
+            try await GitRepositoryValidator(runner: runner).validate(path: path)
+        }
+    }
+
+    @Test func rejectsAnUnreadableFolder() async throws {
+        let runner = try GitRunner.locate()
+        let folder = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "VelocityUnreadable-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: folder.path(percentEncoded: false))
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path(percentEncoded: false))
+            try? FileManager.default.removeItem(at: folder)
+        }
+
+        let path = folder.path(percentEncoded: false)
+        await #expect(throws: GitError.permissionDenied(path: path)) {
+            try await GitRepositoryValidator(runner: runner).validate(path: path)
+        }
+    }
+
     @Test func suggestsTheFolderNameAsADisplayName() {
         #expect(GitRepositoryValidator.suggestedName(for: "/Users/example/Code/velocity") == "velocity")
     }
