@@ -25,7 +25,10 @@ xcuserdata/
 .build/
 .swiftpm/
 Packages/
-Package.resolved
+
+# Velocity is an app, not a library — its resolved package versions
+# (Velocity.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)
+# are committed on purpose, for reproducible CI builds.
 
 ## Playgrounds
 timeline.xctimeline
