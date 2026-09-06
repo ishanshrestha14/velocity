@@ -9,6 +9,7 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         @Bindable var store = appEnvironment.store
+        @Bindable var updateService = appEnvironment.updateService
         Form {
             Section {
                 TextField(
@@ -67,6 +68,24 @@ struct GeneralSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            Section {
+                Toggle("Check for updates automatically", isOn: $updateService.automaticallyChecksForUpdates)
+                    .help("Let Sparkle check the appcast for a newer release on its own schedule.")
+
+                LabeledContent("Velocity updates itself") {
+                    Button("Check Now…") {
+                        updateService.checkForUpdates()
+                    }
+                    .disabled(!updateService.canCheckForUpdates)
+                }
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text("Sparkle installs newer builds of Velocity itself. It never touches your shipped items or repositories — those stay local JSON on this Mac.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
