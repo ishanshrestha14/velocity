@@ -1,6 +1,7 @@
 # Velocity — Build Progress
 
-Working log for the eight-phase plan in `README.md` §34.
+Working log for the phase plan in `README.md` §34 — the original eight
+phases, plus Phase 9 (auto-updates), added after the MVP shipped.
 
 Update this file at the end of every phase: mark the phase, record decisions that
 future-me would otherwise have to re-derive from the diff, and move anything
@@ -19,10 +20,14 @@ Nothing gets deferred without landing in that table.
 | 6 | Repository Automation | ✅ Complete |
 | 7 | Native macOS Polish | ✅ Complete |
 | 8 | Reliability, Packaging & Release | ✅ Complete |
+| 9 | Auto-Updates & Release Infrastructure | ✅ Complete (see caveats below) |
 
 Current state: the app is feature-complete per the MVP definition and has a
 Release build that installs and runs independently of Xcode — a signed
-`.app` in a DMG, with an icon.
+`.app` in a DMG, with an icon. Sparkle is wired up and the update UI works;
+the Developer ID signing + notarization half of the release pipeline is
+documented but unexercised, since this machine has no paid Apple Developer
+account (see README.md §42).
 
 ## Verifying
 
@@ -411,6 +416,98 @@ verification Phase 7 used, not a visual one.
 - **`LSApplicationCategoryType` was set to `public.app-category.developer-tools`**
   purely to silence the Release build's validation warning; it has no
   runtime effect for an app that never ships to the Mac App Store.
+
+## Phase 9 — Auto-Updates & Release Infrastructure ✅
+
+Sparkle 2.9.6 via SPM, a one-file `UpdateService` wrapper, "Check for
+Updates…" in both the app menu and the menu-bar panel, an "update
+automatically" Settings toggle, and the release pipeline documented (not
+fully exercised — see below) in README.md §42. 113 tests still pass; no new
+tests were added since there is no Velocity-owned logic to unit test here —
+`UpdateService` is a thin pass-through to Sparkle's own, already-tested API.
+
+**Decisions**
+
+- **Hit a real crash on first run, not a hypothetical one.** Adding
+  Sparkle as a package dependency and building looked clean, but launching
+  the built app terminated immediately with `Library not loaded:
+  @rpath/Sparkle.framework`. Root cause: this project's `.pbxproj` was
+  hand-built from scratch across Phases 1–8 and never had Xcode's default
+  `LD_RUNPATH_SEARCH_PATHS = @executable_path/../Frameworks` — nothing
+  needed it before, since nothing was embedded until now. Added that
+  setting to both Debug and Release configs; confirmed fixed by launching
+  the built app and clicking through the menu bar panel via System Events.
+- **A second, distinct launch crash surfaced only in the Release
+  configuration**: `different Team` from dyld's library validation.
+  Hardened Runtime (already on, from Phase 8) requires every loaded binary
+  to share the app's Team ID; an ad-hoc-signed app has no Team ID for
+  Sparkle's separately ad-hoc-signed framework to match. Fixed with
+  `com.apple.security.cs.disable-library-validation` in the entitlements
+  file, which is the entitlement Sparkle's own documentation names for
+  apps that embed it — confirmed by removing it and reproducing the exact
+  crash, then re-adding it and confirming a clean launch. Left unverified:
+  whether a real Developer ID + notarized build still needs this once
+  Xcode re-signs the embedded framework under that same team; the
+  entitlements file's comment flags this for whoever exercises real
+  signing.
+- **The Xcode project file itself was edited with the `xcodeproj` Ruby gem**
+  (`gem install xcodeproj --user-install`), not by hand-writing the new
+  `XCRemoteSwiftPackageReference` / `XCSwiftPackageProductDependency`
+  objects into the `.pbxproj` text. That format has enough interlocking
+  object IDs that a manual edit risked a subtly broken project file;
+  `xcodeproj` is the same tool CocoaPods and `fastlane` use for exactly
+  this. `xcodebuild -resolvePackageDependencies` then confirmed the
+  reference resolves (Sparkle 2.9.6) before anything else was touched.
+- **`SUPublicEDKey` ships as the literal placeholder string
+  `REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY`, not a real key.** Sparkle's own
+  `generate_keys` tool stores the private half in the *running machine's*
+  login Keychain and requires an interactive Keychain-access prompt —
+  not something to trigger unattended on the user's actual Mac as a side
+  effect of a coding task. Generating the real keypair is left as a
+  one-time step for whoever cuts the first release (documented in
+  README.md §42); verified the placeholder doesn't crash the app at
+  launch or when "Check for Updates…" is actually clicked — Sparkle just
+  has nothing valid to verify against yet, which is the correct state
+  pre-release.
+- **`SUFeedURL` points at this repo's own `appcast.xml` via
+  `raw.githubusercontent.com`**, not a placeholder — it is a real, stable
+  HTTPS URL today, and it costs nothing to host an appcast with zero
+  `<item>`s until the first real release adds one.
+- **`Package.resolved` is now committed**, reversing this project's
+  original blanket `.gitignore` entry for it. That entry made sense for a
+  project with zero package dependencies; now that Sparkle is a real,
+  versioned dependency, CI and every other clone need the same resolved
+  version pinned, which is the entire point of committing the file for an
+  app (as opposed to a library, where consumers pin their own).
+- **The GitHub Actions workflow (`.github/workflows/release.yml`) is
+  written to the full sign → notarize → DMG → Sparkle-sign → appcast
+  pipeline, but is unexercised.** It reads six secrets
+  (`APPLE_DEVELOPER_ID_CERTIFICATE_P12` and friends — see README.md §42's
+  table) that do not exist in this repository yet. Until they're added in
+  GitHub's repo settings, a tag push will fail at the signing step by
+  design, rather than silently publish an ad-hoc-signed build.
+- **No Velocity-owned code was added to test.** `UpdateService` has no
+  branches, no state machine, and no domain logic of its own — it forwards
+  three properties/methods straight to `SPUUpdater`. Unit-testing it would
+  mean either mocking Sparkle's own already-tested surface (test the mock,
+  not the code) or launching the real Sparkle updater in a test target
+  (an integration test of a third-party framework, not of Velocity).
+  Verification here was a real build + a real launch + a real button
+  click, not a unit test — matching how Phase 7 and 8 verified
+  accessibility and packaging.
+
+**What was not done, and why**
+
+- **Developer ID signing and notarization were not exercised** — no paid
+  Apple Developer Program membership exists on this machine. The Release
+  build stays ad-hoc signed ("Sign to Run Locally"), same as Phase 8.
+- **A real signed release was not produced or published.** Doing so needs
+  the real Sparkle keypair and Developer ID cert from the two points
+  above, neither of which this session can or should generate.
+- **The GitHub Actions workflow has not run.** It depends on the six
+  secrets table in README.md §42; adding them is a one-time step for
+  whoever owns the GitHub repo's settings, not something achievable from
+  the local checkout.
 
 ---
 
