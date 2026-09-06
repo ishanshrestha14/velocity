@@ -7,5 +7,17 @@
 	     this is a locally-built personal utility, not a Mac App Store product. -->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
+	<!-- Hardened Runtime's Library Validation requires every loaded binary to
+	     share the app's Team ID. Without this, the ad-hoc-signed local build
+	     crashed at launch loading Sparkle.framework with "different Team"
+	     (see PROGRESS.md's Phase 9 entry) — confirmed by removing this
+	     entitlement and reproducing the crash. Sparkle's own documentation
+	     names this entitlement for apps that embed it. Unverified on this
+	     machine: whether a real Developer ID + notarized build still needs
+	     it once Xcode re-signs the embedded framework under that same team —
+	     recheck once real signing is exercised (README.md §42).
+	-->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
 </dict>
 </plist>
