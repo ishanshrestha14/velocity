@@ -29,6 +29,9 @@ struct VelocityApp: App {
         .windowResizability(.contentMinSize)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesCommand(environment: environment)
+            }
             CommandGroup(after: .windowArrangement) {
                 OpenDashboardCommand()
             }
@@ -68,6 +71,19 @@ private struct OpenDashboardCommand: View {
             openWindow(id: WindowID.dashboard)
         }
         .keyboardShortcut("d", modifiers: .command)
+    }
+}
+
+/// Menu command for Sparkle's update check. Placed right after "About
+/// Velocity", which is where macOS apps conventionally put it.
+private struct CheckForUpdatesCommand: View {
+    let environment: AppEnvironment
+
+    var body: some View {
+        Button("Check for Updates…") {
+            environment.updateService.checkForUpdates()
+        }
+        .disabled(!environment.updateService.canCheckForUpdates)
     }
 }
 
