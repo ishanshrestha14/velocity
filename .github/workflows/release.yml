@@ -1,21 +1,19 @@
-# Builds, signs, notarizes, packages, and publishes a Velocity release.
+# Builds, packages, Sparkle-signs, and publishes a Velocity release.
 #
 # Triggered by pushing a version tag (v0.2.0, etc.) — see README.md §42 for
-# the full pipeline this implements and the versioning rule (bump
+# the full pipeline this implements, the versioning rule (bump
 # CURRENT_PROJECT_VERSION every release; MARKETING_VERSION should match the
-# tag).
+# tag), and "The free-path tradeoff": Velocity ships ad-hoc signed, with no
+# Developer ID or notarization, by deliberate choice — not because this
+# step is unfinished. That means installers and updates need one manual
+# Gatekeeper "Open Anyway" click; see §42 before deciding to add signing
+# back.
 #
-# Requires these repository secrets, none of which exist yet:
-#   APPLE_DEVELOPER_ID_CERTIFICATE_P12       (base64-encoded .p12)
-#   APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD
-#   APPLE_TEAM_ID
-#   APPLE_NOTARIZATION_APPLE_ID
-#   APPLE_NOTARIZATION_APP_PASSWORD
-#   SPARKLE_PRIVATE_KEY                      (exported via generate_keys -x)
+# Requires one repository secret, which does not exist yet:
+#   SPARKLE_PRIVATE_KEY   (exported via generate_keys -x — README.md §42)
 #
-# Until those secrets are added, this workflow will fail at the signing
-# step by design — a Debug/ad-hoc build must never be published as a
-# release users install.
+# Until it's added, this workflow fails at the Sparkle-signing step by
+# design — an unsigned update archive must never reach a real appcast.
 name: Release
 
 on:
@@ -39,47 +37,11 @@ jobs:
       - name: Run tests
         run: xcodebuild test -project Velocity.xcodeproj -scheme Velocity -destination 'platform=macOS'
 
-      - name: Import Developer ID signing certificate
-        env:
-          APPLE_DEVELOPER_ID_CERTIFICATE_P12: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_P12 }}
-          APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
-        run: |
-          KEYCHAIN_PATH="$RUNNER_TEMP/release-signing.keychain-db"
-          KEYCHAIN_PASSWORD=$(uuidgen)
-          CERTIFICATE_PATH="$RUNNER_TEMP/developer_id.p12"
-
-          echo "$APPLE_DEVELOPER_ID_CERTIFICATE_P12" | base64 --decode > "$CERTIFICATE_PATH"
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERTIFICATE_PATH" -P "$APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD" \
-            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain
-
       - name: Build Release configuration
         run: |
           xcodebuild -project Velocity.xcodeproj -scheme Velocity -configuration Release \
             -destination 'platform=macOS' -derivedDataPath build \
-            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Developer ID Application" \
-            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
             clean build
-
-      - name: Notarize
-        env:
-          APPLE_NOTARIZATION_APPLE_ID: ${{ secrets.APPLE_NOTARIZATION_APPLE_ID }}
-          APPLE_NOTARIZATION_APP_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_APP_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          APP_PATH="build/Build/Products/Release/Velocity.app"
-          ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/Velocity.zip"
-          xcrun notarytool submit "$RUNNER_TEMP/Velocity.zip" \
-            --apple-id "$APPLE_NOTARIZATION_APPLE_ID" \
-            --password "$APPLE_NOTARIZATION_APP_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait
-          xcrun stapler staple "$APP_PATH"
 
       - name: Create DMG
         run: |
@@ -117,4 +79,5 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           gh release create "$GITHUB_REF_NAME" "Velocity-$VERSION.dmg" \
             --title "Velocity $VERSION" \
+            --notes "Ad-hoc signed, not notarized — after updating, macOS may require System Settings > Privacy & Security > Open Anyway once. See README.md §42." \
             --generate-notes

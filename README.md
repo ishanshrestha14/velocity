@@ -1462,17 +1462,17 @@ Let Velocity update itself once it is out of Xcode's hands, without depending on
 - Add a "check automatically" setting
 - Configure `SUFeedURL` / `SUPublicEDKey` / `SUEnableAutomaticChecks`
 - Keep the Sparkle EdDSA private key out of the repository entirely
-- Define the Developer ID sign → notarize → DMG → Sparkle-sign → appcast
-  release pipeline
-- Document versioning, signing, notarization, and the appcast for whoever
-  cuts a release
+- Define the ad-hoc-sign → DMG → Sparkle-sign → appcast release pipeline
+  (no Developer ID/notarization — see §42's free-path tradeoff)
+- Document versioning, signing, and the appcast for whoever cuts a release
 
 ### Deliverable
 
 Velocity can check a hosted appcast and offer an in-app update, and the
-release process that produces that appcast is documented even though it
-cannot be exercised end-to-end without a paid Developer ID account. See
-§42 for the full process.
+release process that produces that appcast is documented and fully
+runnable on the free path — no paid Apple Developer account. The
+tradeoff (a manual Gatekeeper "Open Anyway" click per update) is a
+deliberate choice, documented in §42, not a gap waiting to be closed.
 
 ---
 
@@ -1776,10 +1776,10 @@ file that changes.
   Settings toggle all work), but signature verification will not validate
   against a real release until the real public key from your own keypair
   replaces the placeholder.
-- Debug builds are ad-hoc signed ("Sign to Run Locally"), which is fine for
-  local development. Sparkle does not require Developer ID signing to run
-  locally — only real distributed updates need a Developer ID + notarized
-  build so Gatekeeper accepts them on someone else's Mac.
+- Debug and Release builds are both ad-hoc signed ("Sign to Run Locally").
+  This is a deliberate choice, not a placeholder waiting for a paid Apple
+  Developer account — see **The free-path tradeoff** below for what that
+  means for updates specifically.
 
 ## Generating the Sparkle signing key (once, by whoever releases)
 
@@ -1825,6 +1825,30 @@ releases); a hotfix that doesn't warrant a new marketing version can bump
 only the build number. Both live in `Velocity.xcodeproj/project.pbxproj`
 under the `Velocity` target's Debug/Release configurations.
 
+## The free-path tradeoff
+
+Velocity deliberately ships **without** a paid Apple Developer Program
+membership ($99/year), which means no Developer ID signing and no
+notarization. This is a considered choice, not a temporary gap:
+
+- **What this costs you:** every file macOS downloads over the network —
+  including every Sparkle update, not just the first install — gets a
+  quarantine flag. Without notarization, Gatekeeper refuses to open a
+  quarantined, ad-hoc-signed app outright ("Apple could not verify this app
+  is free of malware"). The fix is one manual step per update: **System
+  Settings → Privacy & Security → scroll to the security section → "Open
+  Anyway"** — then relaunch. This applies to you on any second Mac just as
+  much as to anyone else who installs it.
+- **What this gets you:** zero cost, no Apple account enrollment, no
+  certificate/notarization credentials to manage or leak. Sparkle still
+  checks the appcast, downloads, verifies its own EdDSA signature, and
+  offers the update — the *only* difference from a paid setup is that one
+  extra manual click after each update, instead of a silent install.
+- **If this ever changes:** getting a Developer ID later only means adding
+  the signing/notarization steps to the release workflow below and
+  populating the secrets table — nothing about `UpdateService`, the
+  appcast format, or the versioning scheme would need to change.
+
 ## Release pipeline
 
 ```text
@@ -1832,11 +1856,7 @@ Source code
     ↓
 GitHub Actions (on a version tag, e.g. v0.2.0)
     ↓
-Build macOS app (Release configuration, universal binary)
-    ↓
-Developer ID code signing (replaces the local ad-hoc signature)
-    ↓
-Notarization (xcrun notarytool; staple the ticket to the .app)
+Build macOS app (Release configuration, universal binary, ad-hoc signed)
     ↓
 Create DMG (hdiutil, as done locally for Phase 8)
     ↓
@@ -1848,11 +1868,9 @@ Generate/update appcast.xml (Sparkle's generate_appcast tool, or hand-written
 Publish: GitHub Release (DMG as an asset) + commit the updated appcast.xml
 ```
 
-This repository does not yet have a paid Apple Developer Program
-membership, so the signing/notarization steps cannot be exercised for real
-here — see **What cannot be tested locally** below. The GitHub Actions
-workflow is written to the shape above but the signing/notarization steps
-are stubs until those secrets exist.
+No Developer ID signing or notarization step exists in this pipeline —
+see **The free-path tradeoff** above for why that's intentional here.
+`.github/workflows/release.yml` implements exactly this shape.
 
 ### GitHub Releases + appcast hosting
 
@@ -1866,26 +1884,19 @@ are stubs until those secrets exist.
   automating all of this from a single tag push; see that file's comments
   for which secrets it expects and why each step is currently a stub.
 
-### Required GitHub Actions secrets (none of these exist yet)
+### Required GitHub Actions secrets
 
 | Secret | Used for |
 |---|---|
-| `APPLE_DEVELOPER_ID_CERTIFICATE_P12` (base64) | Developer ID Application certificate for code signing |
-| `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD` | Password for the above `.p12` |
-| `APPLE_TEAM_ID` | Apple Developer Team ID |
-| `APPLE_NOTARIZATION_APPLE_ID` | Apple ID used for `notarytool` |
-| `APPLE_NOTARIZATION_APP_PASSWORD` | App-specific password for that Apple ID |
 | `SPARKLE_PRIVATE_KEY` | Exported EdDSA private key, for `sign_update` |
 
-None of these are hardcoded anywhere in this repository, and the workflow
-reads all of them from `secrets.*` — see `.github/workflows/release.yml`.
+This is the only secret the free path needs. It is not hardcoded anywhere
+in this repository — the workflow reads it from `secrets.SPARKLE_PRIVATE_KEY`.
+(If Developer ID signing is ever added later, that reintroduces the
+certificate/notarization secrets described in the free-path section above.)
 
 ## What cannot be tested locally
 
-- **Developer ID signing and notarization** — this machine has no paid
-  Apple Developer Program membership. Builds here stay ad-hoc signed
-  ("Sign to Run Locally"), which is correct for local development but is
-  not what a real release should ship.
 - **A real end-to-end update** — with the placeholder `SUPublicEDKey` and
   an `appcast.xml` that lists no releases, Sparkle's "Check for Updates…"
   path is verified to *run* (build, link, invoke, no crash — see
@@ -1893,5 +1904,8 @@ reads all of them from `secrets.*` — see `.github/workflows/release.yml`.
   needs a real keypair, a real signed release, and a populated appcast —
   the first real release is also the first real test of the full pipeline.
 - **The GitHub Actions workflow itself** — it is written to the pipeline
-  shape above but has not run in CI, since it depends on the secrets table
-  above existing in the repository's settings.
+  shape above but has not run in CI, since it depends on
+  `SPARKLE_PRIVATE_KEY` existing in the repository's settings.
+- **The Gatekeeper "Open Anyway" step** — not exercisable from this
+  environment (it's a GUI prompt on the machine receiving the update), but
+  it is the expected, documented behavior of the free path above, not a bug.
