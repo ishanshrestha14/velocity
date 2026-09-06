@@ -7,9 +7,11 @@ import Observation
 @Observable
 final class AppEnvironment {
     let store: VelocityStore
+    let updateService: UpdateService
 
-    init(store: VelocityStore) {
+    init(store: VelocityStore, updateService: UpdateService = UpdateService()) {
         self.store = store
+        self.updateService = updateService
     }
 
     /// The real environment: state backed by JSON in Application Support.
