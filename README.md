@@ -1448,6 +1448,34 @@ A stable Release build that can be installed and used independently of Xcode.
 
 ---
 
+# Phase 9 — Auto-Updates & Release Infrastructure
+
+### Goal
+
+Let Velocity update itself once it is out of Xcode's hands, without depending on the Mac App Store.
+
+### Tasks
+
+- Add Sparkle 2 via Swift Package Manager
+- Wrap `SPUStandardUpdaterController` behind a single `UpdateService`
+- Add "Check for Updates…" to the app menu and the menu-bar panel
+- Add a "check automatically" setting
+- Configure `SUFeedURL` / `SUPublicEDKey` / `SUEnableAutomaticChecks`
+- Keep the Sparkle EdDSA private key out of the repository entirely
+- Define the Developer ID sign → notarize → DMG → Sparkle-sign → appcast
+  release pipeline
+- Document versioning, signing, notarization, and the appcast for whoever
+  cuts a release
+
+### Deliverable
+
+Velocity can check a hosted appcast and offer an in-app update, and the
+release process that produces that appcast is documented even though it
+cannot be exercised end-to-end without a paid Developer ID account. See
+§42 for the full process.
+
+---
+
 # 35. Phase Execution Rule
 
 **Do not skip ahead just because a later feature is visible in the design.**
@@ -1715,3 +1743,155 @@ And when the user wants the bigger picture:
 **The product is not about tracking everything a developer does.**
 
 It is about making **shipping momentum visible**.
+
+---
+
+# 42. Auto-Updates & Release Infrastructure
+
+Sparkle handles **application updates only** — checking a hosted appcast,
+verifying a release's signature, downloading and installing a newer build.
+It has nothing to do with Velocity's data: `VelocityData` stays local JSON
+under `~/Library/Application Support/Velocity/` on each Mac, exactly as
+before. There is no iCloud, CloudKit, backend, or cross-device sync, and
+none should be added as part of this.
+
+## Architecture
+
+Sparkle is isolated to one file, `Velocity/Services/Update/UpdateService.swift`.
+Nothing else in the app imports Sparkle — `AppEnvironment`, `VelocityApp`,
+`MenuBarView`, and `GeneralSettingsView` only see `UpdateService`'s plain
+`checkForUpdates()` method and `canCheckForUpdates` / `automaticallyChecksForUpdates`
+properties. If Sparkle is ever swapped for something else, this is the only
+file that changes.
+
+## Local development
+
+- Sparkle is a Swift Package dependency (`https://github.com/sparkle-project/Sparkle`,
+  `.upToNextMajor(2.6.4)`), resolved automatically on first build —
+  no manual setup needed to build and run.
+- `Info.plist` ships with a placeholder `SUPublicEDKey`
+  (`REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY`) and a real `SUFeedURL` pointing at
+  `appcast.xml` in this repo. With the placeholder key, Sparkle's update
+  *checks* still run (the UI is fully invokable — button, menu item, and
+  Settings toggle all work), but signature verification will not validate
+  against a real release until the real public key from your own keypair
+  replaces the placeholder.
+- Debug builds are ad-hoc signed ("Sign to Run Locally"), which is fine for
+  local development. Sparkle does not require Developer ID signing to run
+  locally — only real distributed updates need a Developer ID + notarized
+  build so Gatekeeper accepts them on someone else's Mac.
+
+## Generating the Sparkle signing key (once, by whoever releases)
+
+Sparkle's own EdDSA keypair is separate from Apple code signing. Generate it
+once, on the machine that will cut releases:
+
+```sh
+# Path comes from the resolved package under DerivedData, or build
+# Sparkle's own tool from the checked-out package.
+/path/to/Sparkle/bin/generate_keys
+```
+
+This stores the **private** key in that Mac's login Keychain (item "Private
+key for signing Sparkle updates") and prints the **public** key to paste into
+`SUPublicEDKey` in the Xcode project's build settings. The private key:
+
+- **never** leaves the Keychain as a file you'd accidentally commit,
+- is exported (`generate_keys -x key.pem`) only to hand to a CI secret store,
+  never to a path inside this repository,
+- should be re-imported into GitHub Actions as a secret
+  (`SPARKLE_PRIVATE_KEY`), consumed at build time, and not written to disk
+  in the runner's workspace.
+
+If this key is ever lost, existing installs simply stop trusting new
+releases signed with a different key — there is no silent downgrade in
+trust, so losing it means shipping one update that asks users to
+reinstall, not a security hole.
+
+## Versioning
+
+Two Xcode build settings drive both the app's version and Sparkle's update
+comparison:
+
+| Setting | Meaning | Example |
+|---|---|---|
+| `MARKETING_VERSION` | Human-facing version (`CFBundleShortVersionString`) | `0.2.0` |
+| `CURRENT_PROJECT_VERSION` | Build number (`CFBundleVersion`) — what Sparkle actually compares to decide "is this newer?" | `4` |
+
+**To cut a release:** bump `CURRENT_PROJECT_VERSION` by 1 every single
+release, no exceptions — this is the number Sparkle orders by. Bump
+`MARKETING_VERSION` whenever the human-facing version should change (most
+releases); a hotfix that doesn't warrant a new marketing version can bump
+only the build number. Both live in `Velocity.xcodeproj/project.pbxproj`
+under the `Velocity` target's Debug/Release configurations.
+
+## Release pipeline
+
+```text
+Source code
+    ↓
+GitHub Actions (on a version tag, e.g. v0.2.0)
+    ↓
+Build macOS app (Release configuration, universal binary)
+    ↓
+Developer ID code signing (replaces the local ad-hoc signature)
+    ↓
+Notarization (xcrun notarytool; staple the ticket to the .app)
+    ↓
+Create DMG (hdiutil, as done locally for Phase 8)
+    ↓
+Sparkle-sign the DMG (sign_update, using the Keychain-held private key)
+    ↓
+Generate/update appcast.xml (Sparkle's generate_appcast tool, or hand-written
+    entry: version, signature, download URL, minimum system version)
+    ↓
+Publish: GitHub Release (DMG as an asset) + commit the updated appcast.xml
+```
+
+This repository does not yet have a paid Apple Developer Program
+membership, so the signing/notarization steps cannot be exercised for real
+here — see **What cannot be tested locally** below. The GitHub Actions
+workflow is written to the shape above but the signing/notarization steps
+are stubs until those secrets exist.
+
+### GitHub Releases + appcast hosting
+
+- Release artifacts (the DMG) are attached to a GitHub Release, one per
+  version tag.
+- `appcast.xml` lives at the repository root and is served at a stable,
+  permanent URL: `https://raw.githubusercontent.com/ishanshrestha14/velocity/main/appcast.xml`
+  (this is exactly what `SUFeedURL` points at). Every release updates this
+  file and commits it to `main` — Sparkle re-reads it on every check.
+- GitHub Actions (`.github/workflows/release.yml`) is the intended home for
+  automating all of this from a single tag push; see that file's comments
+  for which secrets it expects and why each step is currently a stub.
+
+### Required GitHub Actions secrets (none of these exist yet)
+
+| Secret | Used for |
+|---|---|
+| `APPLE_DEVELOPER_ID_CERTIFICATE_P12` (base64) | Developer ID Application certificate for code signing |
+| `APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD` | Password for the above `.p12` |
+| `APPLE_TEAM_ID` | Apple Developer Team ID |
+| `APPLE_NOTARIZATION_APPLE_ID` | Apple ID used for `notarytool` |
+| `APPLE_NOTARIZATION_APP_PASSWORD` | App-specific password for that Apple ID |
+| `SPARKLE_PRIVATE_KEY` | Exported EdDSA private key, for `sign_update` |
+
+None of these are hardcoded anywhere in this repository, and the workflow
+reads all of them from `secrets.*` — see `.github/workflows/release.yml`.
+
+## What cannot be tested locally
+
+- **Developer ID signing and notarization** — this machine has no paid
+  Apple Developer Program membership. Builds here stay ad-hoc signed
+  ("Sign to Run Locally"), which is correct for local development but is
+  not what a real release should ship.
+- **A real end-to-end update** — with the placeholder `SUPublicEDKey` and
+  an `appcast.xml` that lists no releases, Sparkle's "Check for Updates…"
+  path is verified to *run* (build, link, invoke, no crash — see
+  `PROGRESS.md`'s Phase 9 entry) but there is nothing for it to find. That
+  needs a real keypair, a real signed release, and a populated appcast —
+  the first real release is also the first real test of the full pipeline.
+- **The GitHub Actions workflow itself** — it is written to the pipeline
+  shape above but has not run in CI, since it depends on the secrets table
+  above existing in the repository's settings.
