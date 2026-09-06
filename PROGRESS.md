@@ -18,12 +18,11 @@ Nothing gets deferred without landing in that table.
 | 5 | Dashboard + Swift Charts | ✅ Complete |
 | 6 | Repository Automation | ✅ Complete |
 | 7 | Native macOS Polish | ✅ Complete |
-| 8 | Reliability, Packaging & Release | ⬜ Not started |
+| 8 | Reliability, Packaging & Release | ✅ Complete |
 
-Current state: the app is useful end to end. It reads commits out of configured
-repositories, scores them 1/3/5, accepts work logged by hand, and keeps all of it
-in local JSON across restarts. What is missing is the picture: the dashboard
-still has no chart, no month aggregation, and no goal path.
+Current state: the app is feature-complete per the MVP definition and has a
+Release build that installs and runs independently of Xcode — a signed
+`.app` in a DMG, with an icon.
 
 ## Verifying
 
@@ -352,6 +351,67 @@ settings-decoding/round-trip updates for the new fields).
   gated on `store.hasLoaded`, so neither one can flash "nothing shipped" in
   the moment before the on-disk snapshot has actually been read.
 
+## Phase 8 — Reliability, Packaging & Release ✅
+
+An app icon, a permission-denied path added to the validator's test coverage,
+a measured (not guessed) answer on whether repeated full-history scans need
+bounding, an `LSApplicationCategoryType`, and a signed Release `.app` packaged
+into an installable DMG. 113 tests passing project-wide (2 new this phase).
+
+Checked live: launched the Release build, opened the menu-bar panel via
+System Events (confirms the on-disk state from prior phases' testing loads
+cleanly — "0 pts", "Nothing shipped yet today.", the "add a repository"
+hint), expanded Quick Log inline from the panel, and quit cleanly via
+`NSApplication.terminate` — `applicationWillTerminate`'s synchronous flush
+ran, and `~/Library/Application Support/Velocity/velocity.json` was intact
+and well-formed afterward. Screenshot capture was unavailable in this
+environment (`screencapture` refuses without a granted permission this
+session doesn't have), so this is the same accessibility-tree-based
+verification Phase 7 used, not a visual one.
+
+**Decisions**
+
+- **The bulk of Phase 8's reliability list was already true, not newly
+  built.** `PersistenceService` already backs up, quarantines, and never
+  overwrites a file it can't parse (Phase 2); `GitScanner` already isolates
+  one bad repository from the rest of a scan and reports
+  `repositoryNotFound`/`notARepository`/`permissionDenied` instead of
+  throwing (Phase 3); `AppDelegate.applicationWillTerminate` already
+  flushes the debounced save synchronously (Phase 7). This phase's job was
+  mostly to verify that with tests and a real run, and to fill the one real
+  gap: `permissionDenied` had no test exercising it.
+- **`D11` (full-history scans not bounded) is closed by measurement, not by
+  code.** Built a synthetic 50,000-commit repository with `git fast-import`
+  (individual `git commit` calls do not scale to generate a benchmark repo
+  in reasonable time) and timed the actual pipeline: `git log` in 0.16s,
+  `GitCommitParser` parsing that output in 0.16s — about a third of a
+  second, off the main actor, for a history 2,000x larger than anything a
+  personal project's repositories hold today. An incremental bound (a
+  persisted last-scanned SHA per repository) is real complexity — rebase
+  and force-push both invalidate a remembered boundary commit — for a
+  problem that isn't present at any size this app will plausibly see.
+  Leaving it as ordinary full-history scanning matches Rule 5 (don't
+  over-engineer); re-open only if a real repository is ever slow.
+- **The generated icon is a squircle with a white ascending trend line**,
+  rendered at 1024×1024 with Core Graphics (no design tool or existing art
+  was available) and downsampled with `sips` to every required mac idiom.
+  Colors match the dashboard's existing green "shipped" accent rather than
+  introducing a new one.
+- **Signing stays `Automatic` + hardened runtime, ad-hoc ("Sign to Run
+  Locally")** — there is no paid Apple Developer team on this machine, and
+  the entitlements file already documents why the sandbox is off (Velocity
+  execs `/usr/bin/git` against arbitrary absolute paths, which the sandbox
+  would block). This is unchanged from earlier phases; nothing here needed
+  a new decision, just confirming the Release configuration actually
+  produces a valid, launchable, `codesign --verify`-clean `.app`.
+- **DMG packaging uses a plain `hdiutil create` over a staging folder with
+  an `Applications` symlink**, not a styled `create-dmg`-type layout — this
+  is a personal utility with one installer, not a distributed product, and
+  a background image/icon layout is effort the deliverable doesn't need.
+- **`LSApplicationCategoryType` was set to `public.app-category.developer-tools`**
+  purely to silence the Release build's validation warning; it has no
+  runtime effect for an app that never ships to the Mac App Store.
+
 ---
 
 ## Deferred work
@@ -362,15 +422,15 @@ Known and intentional. Each item names the phase that should pick it up.
 |---|---|---|---|
 | D1 | ~~Opening Settings triggers a save with no edit~~ — **done in Phase 7**: `settings.didSet` now compares `oldValue` first | — | ✅ |
 | D2 | ~~`PersistenceService.export(to:)` had no menu item or save panel~~ — **done in Phase 7** | — | ✅ |
-| D3 | Menu-bar panel's buttons still expose no `AXTitle`/`AXDescription` under System Events, even with an explicit `.accessibilityLabel` (the dashboard's tiles were fixed in Phase 7 via `.accessibilityElement(children: .combine)` — same trick made no difference here) | Looks specific to `MenuBarExtra(.window)`'s accessibility bridging rather than fixable from application code. Needs checking with real VoiceOver, not System Events' scripting bridge | 8 |
+| D3 | Menu-bar panel's buttons still expose no `AXTitle`/`AXDescription` under System Events, even with an explicit `.accessibilityLabel` (the dashboard's tiles were fixed in Phase 7 via `.accessibilityElement(children: .combine)` — same trick made no difference here; re-confirmed in Phase 8's manual QA pass) | Looks specific to `MenuBarExtra(.window)`'s accessibility bridging rather than fixable from application code. Needs checking with real VoiceOver, not System Events' scripting bridge | post-MVP |
 | D4 | ~~Repository management UI~~ — **done in Phase 3** | — | ✅ |
 | D5 | ~~"Scan Repositories" in the menu bar~~ — **done in Phase 3** | — | ✅ |
 | D6 | ~~"Quick Log" in the menu bar~~ — **done in Phase 4** | — | ✅ |
 | D7 | ~~Dashboard chart is placeholder copy; summary tiles are today-only~~ — **done in Phase 5** | — | ✅ |
-| D8 | `AppIcon.appiconset` is empty, so the app ships with the generic icon | Packaging concern | 8 |
+| D8 | ~~`AppIcon.appiconset` is empty~~ — **done in Phase 8**: a generated squircle icon at every mac idiom | — | ✅ |
 | D9 | ~~No repositories tab~~ — **done in Phase 3** | — | ✅ |
 | D10 | ~~Scanned commits never reach the feed~~ — **done in Phase 4** | — | ✅ |
 | D13 | ~~Quick-log field may not take focus~~ — **not a bug.** Confirmed working by typing into it with a real click; the earlier symptom was the accessibility script, not the app | — | ✅ |
 | D14 | Scoring rules are compiled in; there is no way to add a type or change a weight | The README lists custom scoring rules under future ideas, and the rule set should settle before it becomes configurable | — |
-| D11 | A scan reads each repository's full history every time | Fine at this size — 23 commits in 0.09s — but a repository with 50k commits will not be. Wants an incremental bound once there is something to measure | 8 |
-| D12 | Repositories are stored as absolute paths, so moving a folder silently breaks it until the next scan reports it | Correct behaviour for now: the error is reported per repository and nothing crashes. A re-locate affordance would be nicer | 7 |
+| D11 | ~~A scan reads each repository's full history every time~~ — **measured in Phase 8, closed**: a synthetic 50,000-commit repository scans in ~0.3s total (`git log` + parsing), off the main actor. No repository this app will plausibly track is close to that size, so an incremental bound stays unbuilt until one actually is | — | ✅ |
+| D12 | Repositories are stored as absolute paths, so moving a folder silently breaks it until the next scan reports it | Correct behaviour for now: the error is reported per repository and nothing crashes. A re-locate affordance would be nicer | post-MVP |
