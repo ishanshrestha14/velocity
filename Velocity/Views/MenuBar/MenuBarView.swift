@@ -109,6 +109,11 @@ struct MenuBarView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Settings…")
 
+            MenuBarButton(title: "Check for Updates…", systemImage: "arrow.down.circle") {
+                appEnvironment.updateService.checkForUpdates()
+            }
+            .disabled(!appEnvironment.updateService.canCheckForUpdates)
+
             Divider()
                 .padding(.vertical, 4)
 
