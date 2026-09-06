@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Velocity's Sparkle appcast.
+
+  Hosted at a stable HTTPS URL (this file's raw GitHub URL) and referenced
+  by SUFeedURL in the Xcode project's Info.plist build settings. Each
+  release adds one <item> here — see README.md §42 for the full process.
+  This file intentionally starts with zero releases: nothing has been
+  published outside Xcode yet.
+-->
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Velocity</title>
+    <link>https://raw.githubusercontent.com/ishanshrestha14/velocity/main/appcast.xml</link>
+    <description>Velocity release updates</description>
+    <language>en</language>
+    <!--
+    <item>
+      <title>Version 0.2.0</title>
+      <pubDate>Mon, 01 Jan 2026 00:00:00 +0000</pubDate>
+      <sparkle:version>2</sparkle:version>
+      <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/ishanshrestha14/velocity/releases/download/v0.2.0/Velocity-0.2.0.dmg"
+        sparkle:edSignature="BASE64_SIGNATURE_FROM_sign_update"
+        length="0"
+        type="application/octet-stream" />
+    </item>
+    -->
+  </channel>
+</rss>
