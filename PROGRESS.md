@@ -498,16 +498,27 @@ tests were added since there is no Velocity-owned logic to unit test here —
 
 **What was not done, and why**
 
-- **Developer ID signing and notarization were not exercised** — no paid
-  Apple Developer Program membership exists on this machine. The Release
-  build stays ad-hoc signed ("Sign to Run Locally"), same as Phase 8.
 - **A real signed release was not produced or published.** Doing so needs
-  the real Sparkle keypair and Developer ID cert from the two points
-  above, neither of which this session can or should generate.
-- **The GitHub Actions workflow has not run.** It depends on the six
-  secrets table in README.md §42; adding them is a one-time step for
-  whoever owns the GitHub repo's settings, not something achievable from
-  the local checkout.
+  the real Sparkle keypair from the point above.
+- **The GitHub Actions workflow has not run.** It depends on
+  `SPARKLE_PRIVATE_KEY` existing in the repository's settings; adding it
+  is a one-time step for whoever owns the GitHub repo's settings, not
+  something achievable from the local checkout.
+
+**Addendum — the free path was chosen deliberately, not left pending**
+
+Asked directly whether Velocity needed a paid Apple Developer account:
+decided no. Developer ID + notarization were originally written into the
+pipeline as the default assumption; the release workflow, README §42, and
+the Phase 9 entry above were revised afterward to drop the Developer ID
+cert/notarization steps and secrets entirely, replacing them with an
+explicit "free-path tradeoff" write-up: every Sparkle-delivered update
+still carries a quarantine flag, so an ad-hoc, unnotarized app requires
+one manual System Settings → Privacy & Security → "Open Anyway" click per
+update, on every Mac including the developer's own second machine. That's
+the accepted cost of $0 and no Apple account, not a defect to fix later.
+Required GitHub Actions secrets dropped from six to one
+(`SPARKLE_PRIVATE_KEY`).
 
 ---
 
