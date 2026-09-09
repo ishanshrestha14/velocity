@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <!--
   Velocity's Sparkle appcast.
 
@@ -8,13 +8,13 @@
   This file intentionally starts with zero releases: nothing has been
   published outside Xcode yet.
 -->
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
-  <channel>
-    <title>Velocity</title>
-    <link>https://raw.githubusercontent.com/ishanshrestha14/velocity/main/appcast.xml</link>
-    <description>Velocity release updates</description>
-    <language>en</language>
-    <!--
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Velocity</title>
+        <link>https://raw.githubusercontent.com/ishanshrestha14/velocity/main/appcast.xml</link>
+        <description>Velocity release updates</description>
+        <language>en</language>
+        <!--
     <item>
       <title>Version 0.2.0</title>
       <pubDate>Mon, 01 Jan 2026 00:00:00 +0000</pubDate>
@@ -28,5 +28,14 @@
         type="application/octet-stream" />
     </item>
     -->
-  </channel>
+        <item>
+            <title>0.2.0</title>
+            <pubDate>Wed, 09 Sep 2026 08:06:48 +0000</pubDate>
+            <link>https://github.com/ishanshrestha14/velocity</link>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/ishanshrestha14/velocity/releases/download/v0.2.0/Velocity-0.2.0.dmg" length="2760519" type="application/octet-stream" sparkle:edSignature="8Ppl735RBDrxkSRwqEqGGuKDi9lzL9d3IpXT39Cvj7XIopjwrMJWpT+y4eCOi5fBWPV536fuLcV9QM1zVidlBA=="/>
+        </item>
+    </channel>
 </rss>
