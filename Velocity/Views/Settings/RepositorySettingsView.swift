@@ -210,10 +210,17 @@ struct RepositorySettingsView: View {
 }
 
 private struct RepositoryRow: View {
+    @Environment(AppEnvironment.self) private var appEnvironment
+
     let repository: Repository
     let result: RepositoryScanResult?
     let onChange: (Repository) -> Void
     let onRemove: () -> Void
+
+    /// Set when a chosen replacement folder is itself not a usable
+    /// repository — shown in place of the scan error until fixed.
+    @State private var relocateError: GitError?
+    @State private var isRelocating = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -229,10 +236,19 @@ private struct RepositoryRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                if let error = result?.error {
-                    Label(error.shortDescription, systemImage: "exclamationmark.triangle.fill")
+                if let error = relocateError ?? result?.error {
+                    HStack(spacing: 6) {
+                        Label(error.shortDescription, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.yellow)
+                        Button("Locate…") {
+                            chooseRelocatedFolder()
+                        }
+                        .buttonStyle(.link)
                         .font(.caption)
-                        .foregroundStyle(.yellow)
+                        .disabled(isRelocating)
+                        .help("Point Velocity at this repository's new location.")
+                    }
                 } else if let result {
                     Text("\(result.matchingCommits) of your commits · \(result.newCommits.count) new")
                         .font(.caption)
@@ -283,5 +299,36 @@ private struct RepositoryRow: View {
                 onChange(updated)
             }
         )
+    }
+
+    /// Lets the user point this repository at wherever its folder actually
+    /// is now, rather than deleting and re-adding it (D12) — re-adding
+    /// means re-picking the scope and re-enabling automation for what is,
+    /// to the user, the same repository that just moved.
+    private func chooseRelocatedFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Locate"
+        panel.message = "Find where \"\(repository.name)\" moved to."
+
+        guard panel.runModal() == .OK, let url = panel.urls.first else { return }
+
+        isRelocating = true
+        Task {
+            defer { isRelocating = false }
+            do {
+                try await appEnvironment.store.relocateRepository(
+                    id: repository.id,
+                    toPath: url.path(percentEncoded: false)
+                )
+                relocateError = nil
+            } catch let error as GitError {
+                relocateError = error
+            } catch {
+                relocateError = .commandFailed(status: -1, message: error.localizedDescription)
+            }
+        }
     }
 }
