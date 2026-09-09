@@ -7,9 +7,10 @@ import Foundation
 actor PersistenceService {
     private let paths: VelocityPaths
     private let store = JSONStore()
-    // FileManager is documented as thread-safe for the file operations used
-    // here, which lets the synchronous termination write reach it too.
-    private nonisolated(unsafe) let fileManager: FileManager
+    // Actor-isolated: every remaining use is from actor-isolated code.
+    // createDirectoriesIfNeeded, which runs nonisolated for the synchronous
+    // termination write, uses FileManager.default directly instead.
+    private let fileManager: FileManager
 
     /// How many daily backups to keep before the oldest are pruned.
     private let backupsToKeep = 7
@@ -106,9 +107,14 @@ actor PersistenceService {
 
     // MARK: - Directories and backups
 
+    // Uses .default directly rather than the actor's own injected fileManager:
+    // this runs from writeSynchronously's nonisolated, non-async context, so
+    // it cannot hop back into the actor to read an isolated property. .default
+    // is the only FileManager this is ever constructed with in practice (see
+    // PersistenceServiceTests), so nothing here observes a different instance.
     private nonisolated func createDirectoriesIfNeeded() throws {
-        try fileManager.createDirectory(at: paths.root, withIntermediateDirectories: true)
-        try fileManager.createDirectory(at: paths.backupsDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: paths.root, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: paths.backupsDirectory, withIntermediateDirectories: true)
     }
 
     /// Keeps one snapshot per day of the last file that read cleanly.
