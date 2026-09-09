@@ -188,7 +188,11 @@ struct RepositorySettingsView: View {
 
     /// Only worth saying anything when more than one folder was chosen, or when
     /// something was skipped.
-    static func summary(added: Int, duplicates: Int, failed: Int) -> String? {
+    ///
+    /// `nonisolated` because it is pure string logic with no view state —
+    /// without it, `View`'s conformance infers this as `@MainActor` on some
+    /// toolchains, which made it uncallable from a plain synchronous test.
+    nonisolated static func summary(added: Int, duplicates: Int, failed: Int) -> String? {
         guard added + duplicates + failed > 1 || duplicates > 0 || failed > 0 else { return nil }
 
         var parts: [String] = []
