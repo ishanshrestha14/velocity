@@ -25,6 +25,7 @@
 		A100000000000000000010 /* Velocity */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				A100000000000000000090 /* Exceptions for "Velocity" folder in "Velocity" target */,
 			);
 			explicitFileTypes = {
 			};
@@ -45,6 +46,16 @@
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A100000000000000000090 /* Exceptions for "Velocity" folder in "Velocity" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A100000000000000000060 /* Velocity */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A100000000000000000032 /* Frameworks */ = {
@@ -283,16 +294,14 @@
 				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Velocity/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/ishanshrestha14/velocity/main/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "kRaFleW5v2W1W57Xgg4Fe+Ukr6KuTfi9s1CYIN7yDms=";
 				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.local.Velocity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -311,16 +320,14 @@
 				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Velocity/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/ishanshrestha14/velocity/main/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "kRaFleW5v2W1W57Xgg4Fe+Ukr6KuTfi9s1CYIN7yDms=";
 				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.local.Velocity;
 				PRODUCT_NAME = "$(TARGET_NAME)";

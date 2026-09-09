@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Xcode's GENERATE_INFOPLIST_FILE only synthesizes keys it has a
+	     built-in spec for from INFOPLIST_KEY_* build settings — arbitrary
+	     third-party keys like Sparkle's are silently dropped, not merged in,
+	     even though setting INFOPLIST_KEY_SUFeedURL etc. produces no error.
+	     This file is merged with the generated plist (GENERATE_INFOPLIST_FILE
+	     stays YES) specifically to carry the keys that mechanism can't. -->
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/ishanshrestha14/velocity/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>kRaFleW5v2W1W57Xgg4Fe+Ukr6KuTfi9s1CYIN7yDms=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+</dict>
+</plist>
