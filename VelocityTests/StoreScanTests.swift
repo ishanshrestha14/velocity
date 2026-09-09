@@ -70,6 +70,45 @@ struct StoreRepositoryTests {
         #expect(store.repositories.isEmpty)
     }
 
+    @Test func relocatingARepositoryUpdatesItsPathButKeepsItsIdentity() async throws {
+        let store = try makeStore()
+        let original = try TestRepository(runner: try GitRunner.locate())
+        try await original.initialize()
+        try await store.addRepository(path: original.path, scope: .work)
+        let repository = try #require(store.repositories.first)
+
+        let movedTo = try TestRepository(runner: try GitRunner.locate())
+        try await movedTo.initialize()
+        try await store.relocateRepository(id: repository.id, toPath: movedTo.path)
+
+        #expect(store.repositories.count == 1)
+        #expect(store.repositories.first?.id == repository.id)
+        #expect(store.repositories.first?.path == movedTo.path)
+        // Relocating is not renaming: the folder name at the new path can
+        // differ from the old one, and the user's chosen name is kept.
+        #expect(store.repositories.first?.name == repository.name)
+        #expect(store.repositories.first?.scope == .work)
+    }
+
+    @Test func relocatingToAFolderThatIsNotARepositoryLeavesTheOldPathInPlace() async throws {
+        let store = try makeStore()
+        let original = try TestRepository(runner: try GitRunner.locate())
+        try await original.initialize()
+        try await store.addRepository(path: original.path, scope: .personal)
+        let repository = try #require(store.repositories.first)
+
+        let notARepo = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appending(path: "VelocityNotARepo-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: notARepo, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: notARepo) }
+        let badPath = notARepo.path(percentEncoded: false)
+
+        await #expect(throws: GitError.notARepository(path: badPath)) {
+            try await store.relocateRepository(id: repository.id, toPath: badPath)
+        }
+        #expect(store.repositories.first?.path == original.path)
+    }
+
     @Test func scanningNeedsAnEmailARepositoryAndGit() async throws {
         let store = try makeStore()
         #expect(store.canScan == false)   // no email, no repositories

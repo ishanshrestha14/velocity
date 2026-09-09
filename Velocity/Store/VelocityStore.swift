@@ -292,6 +292,24 @@ final class VelocityStore {
         scheduleSaveIfLoaded()
     }
 
+    /// Point an existing repository at a new location on disk, for when the
+    /// folder has moved and its old path no longer resolves (D12).
+    ///
+    /// Keeps the same id — and everything already imported under it — and
+    /// just re-validates and swaps the path, the same check `addRepository`
+    /// runs on a brand new one.
+    func relocateRepository(id: Repository.ID, toPath path: String) async throws {
+        guard let index = repositories.firstIndex(where: { $0.id == id }) else { return }
+        let cleanPath = (path as NSString).standardizingPath
+
+        if let scanner {
+            try await GitRepositoryValidator(runner: scanner.runner).validate(path: cleanPath)
+        }
+
+        repositories[index].path = cleanPath
+        scheduleSaveIfLoaded()
+    }
+
     func updateRepository(_ repository: Repository) {
         guard let index = repositories.firstIndex(where: { $0.id == repository.id }) else { return }
         guard repositories[index] != repository else { return }

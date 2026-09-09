@@ -623,6 +623,24 @@ doesn't surface `AXDescription` for elements inside a `MenuBarExtra(.window)`
 popover. That's a testing-tool limitation, not an app defect — nothing in
 application code needed to change.
 
+**D12 (repository re-locate) — closed.** Added `VelocityStore
+.relocateRepository(id:toPath:)`, which re-validates a new path through
+the same `GitRepositoryValidator` the "Add Repositories…" flow already
+uses, then swaps `Repository.path` in place — keeping the same id, scope,
+and enabled state, rather than making the user delete the broken row and
+re-add it from scratch. `RepositoryRow` shows a "Locate…" button next to
+any scan error, opening an `NSOpenPanel` and surfacing a fresh `GitError`
+inline if the newly chosen folder is itself not usable. Two new tests
+cover the success path (path swaps, identity/scope survive) and the
+failure path (an invalid replacement folder throws and leaves the old
+path untouched) — 115 tests passing project-wide. Live UI click-through
+of the `NSOpenPanel` step itself was not exercised this session — System
+Events automation of open/save panels proved too flaky to get a clean
+run in the time available; the empty-state Repositories tab was
+confirmed to render without crashing after the change, and the panel
+code follows the exact pattern `chooseRepositories()` already uses
+successfully.
+
 ---
 
 ## Deferred work
@@ -644,4 +662,4 @@ Known and intentional. Each item names the phase that should pick it up.
 | D13 | ~~Quick-log field may not take focus~~ — **not a bug.** Confirmed working by typing into it with a real click; the earlier symptom was the accessibility script, not the app | — | ✅ |
 | D14 | Scoring rules are compiled in; there is no way to add a type or change a weight | The README lists custom scoring rules under future ideas, and the rule set should settle before it becomes configurable | — |
 | D11 | ~~A scan reads each repository's full history every time~~ — **measured in Phase 8, closed**: a synthetic 50,000-commit repository scans in ~0.3s total (`git log` + parsing), off the main actor. No repository this app will plausibly track is close to that size, so an incremental bound stays unbuilt until one actually is | — | ✅ |
-| D12 | Repositories are stored as absolute paths, so moving a folder silently breaks it until the next scan reports it | Correct behaviour for now: the error is reported per repository and nothing crashes. A re-locate affordance would be nicer | post-MVP |
+| D12 | ~~Repositories are stored as absolute paths, so moving a folder silently breaks it~~ — **closed**: a broken row now shows a "Locate…" button next to its scan error, which re-validates the chosen folder and swaps the path in place, keeping the same id/scope/enabled state | — | ✅ |
