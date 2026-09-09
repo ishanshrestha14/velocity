@@ -5,11 +5,16 @@ import Foundation
 ///
 /// The filesystem checks come first because they produce a precise message —
 /// "not a folder", "no .git here" — where git itself would only say "fatal".
-struct GitRepositoryValidator: Sendable {
+// @unchecked rather than nonisolated(unsafe) on the property: the latter's
+// support for a plain (non-actor) stored property isn't consistent across
+// Swift 6 toolchain versions — it built locally but failed in CI on Xcode
+// 16.4 with "Non-sendable type 'FileManager' ... cannot exit
+// nonisolated(unsafe) context". @unchecked Sendable is the older, uniformly
+// supported escape hatch for the same guarantee: FileManager's documented
+// thread-safety on the operations used here.
+struct GitRepositoryValidator: @unchecked Sendable {
     let runner: GitRunner
-    // FileManager is not Sendable, but the operations used here are documented
-    // as thread-safe on the shared instance.
-    nonisolated(unsafe) let fileManager: FileManager
+    let fileManager: FileManager
 
     init(runner: GitRunner, fileManager: FileManager = .default) {
         self.runner = runner
