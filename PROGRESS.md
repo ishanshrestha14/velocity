@@ -541,6 +541,63 @@ branch would otherwise silently overwrite it with main's old copy, since
 `appcast.xml` is tracked on both). Not run in CI yet; first real
 verification happens on the first tag push.
 
+**Addendum — the first real tag push, four failures deep, before it actually worked**
+
+Pushing `v0.2.0` for real surfaced four separate bugs, each only visible
+once GitHub Actions' real Xcode 16.4 runner (this project had never been
+built anywhere but the developer's own Mac) and real signing keys were
+involved. In order:
+
+1. `GitRepositoryValidator`'s `nonisolated(unsafe) let fileManager:
+   FileManager` compiled locally (a newer, pre-release Xcode/Swift
+   toolchain) but not on CI's Xcode 16.4 — "non-sendable type 'FileManager'
+   ... cannot exit nonisolated(unsafe) context". Fixed by conforming the
+   struct to `@unchecked Sendable` instead and dropping the per-property
+   attribute — the older, more uniformly supported escape hatch for the
+   same guarantee.
+2. `PersistenceService` (an actor) hit the identical diagnostic on its own
+   `fileManager` property, at the two call sites inside
+   `createDirectoriesIfNeeded` specifically — the only place that property
+   was ever touched from a genuinely nonisolated (not just actor-isolated)
+   context. Root-caused precisely rather than guessed: switched those two
+   calls to `FileManager.default` directly (the only value this is ever
+   constructed with in practice) and dropped `nonisolated(unsafe)` from
+   the property entirely, since every remaining use is actor-isolated.
+3. `RepositorySettingsView.summary(added:duplicates:failed:)` — a pure,
+   stateless string-formatting static func — got swept into `View`'s
+   default `@MainActor` inference on Xcode 16.4, making it uncallable from
+   a plain synchronous test. Fixed with an explicit `nonisolated`.
+4. The most serious one, found only by manually diffing the built app's
+   *actual* `Info.plist`: `SUFeedURL`, `SUPublicEDKey`, and
+   `SUEnableAutomaticChecks` had never once reached a real build, Debug or
+   Release, since Phase 9 began. `GENERATE_INFOPLIST_FILE` only synthesizes
+   Info.plist keys it has a built-in spec for — an unrecognized
+   `INFOPLIST_KEY_*` setting is silently dropped, not passed through
+   generically, which is not documented anywhere obvious and contradicts
+   how every *other* `INFOPLIST_KEY_*` in this project (like
+   `LSApplicationCategoryType`) behaves. The tell: `generate_appcast`
+   produced an `<item>` with no `sparkle:edSignature`, and the test run's
+   own log carried "[Sparkle] Error: Serving updates without an EdDSA key"
+   — a warning that had been there the whole time and was misread earlier
+   as expected placeholder-key behavior. Fixed with a real
+   `Velocity/Info.plist` carrying just these three keys, merged in via
+   `INFOPLIST_FILE` (`GENERATE_INFOPLIST_FILE` stays `YES` — Xcode merges
+   both). That file also needed excluding from the synchronized group's
+   Resources membership (a new `PBXFileSystemSynchronizedBuildFileExceptionSet`),
+   or it gets copied as a stray, incomplete `Info.plist` into
+   `Contents/Resources` alongside the real one in `Contents/`.
+
+Bug 4 meant the `v0.2.0` release GitHub Actions had already published was
+itself broken — installable and usable, but permanently unable to
+advertise or verify any future update, and its appcast entry had no
+signature. Deleted that release and its tag, reverted `appcast.xml` to
+the pristine stub, and re-cut `v0.2.0` from the same tag after the fix.
+The second `v0.2.0` is the one that actually works: **verified directly**,
+not assumed — `generate_appcast` run locally against a freshly built
+Release `.app` produced a real `sparkle:edSignature`, and the same
+happened for real in CI on the successful run, confirmed by reading the
+published `appcast.xml` back off `main`.
+
 ---
 
 ## Deferred work
