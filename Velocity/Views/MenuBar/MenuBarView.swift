@@ -207,9 +207,13 @@ private struct MenuBarButton: View {
         }
         .buttonStyle(.plain)
         // The hover-highlight background and hidden native label make this
-        // read as an unnamed AXButton to System Events without an explicit
-        // label — the automatic inference from `Label`'s text does not carry
-        // through a fully custom-styled button (see PROGRESS.md D3).
+        // read as an unnamed AXButton without an explicit label — the
+        // automatic inference from `Label`'s text does not carry through a
+        // fully custom-styled button. This correctly populates AXDescription,
+        // which is what VoiceOver actually reads (see PROGRESS.md D3 — an
+        // earlier check via System Events' AppleScript bridge missed this
+        // because that bridge doesn't surface AXDescription here, even
+        // though the real Accessibility API does).
         .accessibilityLabel(title)
     }
 }
