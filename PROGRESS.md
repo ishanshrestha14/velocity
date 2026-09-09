@@ -1,6 +1,6 @@
 # Velocity — Build Progress
 
-Working log for the phase plan in `README.md` §34 — the original eight
+Working log for the phase plan in `PRD.md` §34 — the original eight
 phases, plus Phase 9 (auto-updates), added after the MVP shipped.
 
 Update this file at the end of every phase: mark the phase, record decisions that
@@ -27,7 +27,7 @@ Release build that installs and runs independently of Xcode — a signed
 `.app` in a DMG, with an icon. Sparkle is wired up and the update UI works;
 the Developer ID signing + notarization half of the release pipeline is
 documented but unexercised, since this machine has no paid Apple Developer
-account (see README.md §42).
+account (see PRD.md §42).
 
 ## Verifying
 
@@ -422,7 +422,7 @@ verification Phase 7 used, not a visual one.
 Sparkle 2.9.6 via SPM, a one-file `UpdateService` wrapper, "Check for
 Updates…" in both the app menu and the menu-bar panel, an "update
 automatically" Settings toggle, and the release pipeline documented (not
-fully exercised — see below) in README.md §42. 113 tests still pass; no new
+fully exercised — see below) in PRD.md §42. 113 tests still pass; no new
 tests were added since there is no Velocity-owned logic to unit test here —
 `UpdateService` is a thin pass-through to Sparkle's own, already-tested API.
 
@@ -465,7 +465,7 @@ tests were added since there is no Velocity-owned logic to unit test here —
   not something to trigger unattended on the user's actual Mac as a side
   effect of a coding task. Generating the real keypair is left as a
   one-time step for whoever cuts the first release (documented in
-  README.md §42); verified the placeholder doesn't crash the app at
+  PRD.md §42); verified the placeholder doesn't crash the app at
   launch or when "Check for Updates…" is actually clicked — Sparkle just
   has nothing valid to verify against yet, which is the correct state
   pre-release.
@@ -482,7 +482,7 @@ tests were added since there is no Velocity-owned logic to unit test here —
 - **The GitHub Actions workflow (`.github/workflows/release.yml`) is
   written to the full sign → notarize → DMG → Sparkle-sign → appcast
   pipeline, but is unexercised.** It reads six secrets
-  (`APPLE_DEVELOPER_ID_CERTIFICATE_P12` and friends — see README.md §42's
+  (`APPLE_DEVELOPER_ID_CERTIFICATE_P12` and friends — see PRD.md §42's
   table) that do not exist in this repository yet. Until they're added in
   GitHub's repo settings, a tag push will fail at the signing step by
   design, rather than silently publish an ad-hoc-signed build.
@@ -640,6 +640,20 @@ run in the time available; the empty-state Repositories tab was
 confirmed to render without crashing after the change, and the panel
 code follows the exact pattern `chooseRepositories()` already uses
 successfully.
+
+## Post-release: README split
+
+`README.md` had been the full product spec from day one — architecture
+rules, design principles, the phase-by-phase build plan — which is
+exactly right for building the app but not what someone finding this repo
+on GitHub wants to read first. Renamed it to `PRD.md` (preserved as-is,
+still the source of truth for *why* something works the way it does) and
+wrote a new `README.md` aimed at an outside reader: what the app does,
+how to install the DMG (including the free-path Gatekeeper step), how to
+build from source, and pointers to `PRD.md` and this file for anyone who
+wants to go deeper. Also added an `MIT` `LICENSE` — the repo had none
+before, which technically left visitors unable to legally use or fork the
+code despite it being public.
 
 ---
 
