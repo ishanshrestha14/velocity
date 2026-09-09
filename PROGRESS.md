@@ -520,6 +520,27 @@ the accepted cost of $0 and no Apple account, not a defect to fix later.
 Required GitHub Actions secrets dropped from six to one
 (`SPARKLE_PRIVATE_KEY`).
 
+**Addendum — the real signing key is now in place; the appcast step was a stub, now fixed**
+
+The placeholder `SUPublicEDKey` was replaced with the real public key
+after the developer ran `generate_keys` and added `SPARKLE_PRIVATE_KEY`
+to GitHub. Reviewing the workflow before the first real tag push surfaced
+a real gap, unrelated to the free-path decision: the "Update appcast.xml"
+step was a `TODO` echo, not real logic — the release would have built,
+signed nothing, and never touched the appcast, so Sparkle would never see
+a new version. Replaced the separate "sign" and "TODO" steps with one
+step that runs Sparkle's own `generate_appcast` binary (bundled at
+`artifacts/sparkle/Sparkle/bin/generate_appcast` in the resolved
+package) against a directory holding the new DMG and the existing
+appcast.xml — it infers the version from the DMG, signs it via
+`--ed-key-file -` fed from `SPARKLE_PRIVATE_KEY`, and merges it into the
+feed. Added a follow-up step that commits the regenerated `appcast.xml`
+to `main` (checked out via `git checkout -B main origin/main`, taking
+care to stash the freshly generated file first — checking out another
+branch would otherwise silently overwrite it with main's old copy, since
+`appcast.xml` is tracked on both). Not run in CI yet; first real
+verification happens on the first tag push.
+
 ---
 
 ## Deferred work
