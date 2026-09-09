@@ -21,12 +21,17 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write # publishing the release and committing appcast.xml back to main
+
 jobs:
   release:
     runs-on: macos-15
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need main's history too, to commit appcast.xml back to it later
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
@@ -54,23 +59,45 @@ jobs:
           hdiutil create -volname "Velocity" -srcfolder "$STAGING" -ov -format UDZO \
             "Velocity-$VERSION.dmg"
 
-      - name: Sparkle-sign the DMG
+      - name: Sign the DMG and regenerate appcast.xml
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          SPARKLE_BIN=$(find build/SourcePackages/artifacts/sparkle -name sign_update -perm +111 | head -1)
-          echo "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle_private_key"
-          "$SPARKLE_BIN" -f "$RUNNER_TEMP/sparkle_private_key" "Velocity-$VERSION.dmg" \
-            > "$RUNNER_TEMP/sparkle_signature.txt"
-          rm -f "$RUNNER_TEMP/sparkle_private_key"
+          GENERATE_APPCAST=$(find build/SourcePackages/artifacts/sparkle -name generate_appcast -perm +111 | head -1)
 
-      - name: Update appcast.xml
+          # generate_appcast reads every archive in this directory plus any
+          # existing appcast.xml already in it, signs new ones, and folds
+          # them into one updated feed — this is what actually produces the
+          # sparkle:edSignature entry, not a hand-written XML fragment.
+          ARCHIVES="$RUNNER_TEMP/release-archives"
+          mkdir -p "$ARCHIVES"
+          cp "Velocity-$VERSION.dmg" "$ARCHIVES/"
+          cp appcast.xml "$ARCHIVES/"
+
+          echo "$SPARKLE_PRIVATE_KEY" | "$GENERATE_APPCAST" \
+            --ed-key-file - \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/$GITHUB_REF_NAME/" \
+            --link "https://github.com/${{ github.repository }}" \
+            "$ARCHIVES"
+
+          cp "$ARCHIVES/appcast.xml" appcast.xml
+
+      - name: Commit updated appcast.xml to main
         run: |
-          echo "TODO: append an <item> to appcast.xml using the signature" \
-               "from $RUNNER_TEMP/sparkle_signature.txt, the tag version," \
-               "and this release's DMG download URL, then commit it to main."
-          echo "See README.md §42 for the entry's exact shape."
+          # Save the freshly generated file before switching branches —
+          # `git checkout` of another branch would otherwise overwrite this
+          # tracked file with main's old copy of it.
+          cp appcast.xml "$RUNNER_TEMP/new-appcast.xml"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout -B main origin/main
+          cp "$RUNNER_TEMP/new-appcast.xml" appcast.xml
+          git add appcast.xml
+          git commit -m "chore(release): update appcast.xml for $GITHUB_REF_NAME" || echo "Nothing to commit"
+          git push origin main
 
       - name: Publish GitHub Release
         env:

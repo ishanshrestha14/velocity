@@ -1860,17 +1860,22 @@ Build macOS app (Release configuration, universal binary, ad-hoc signed)
     ↓
 Create DMG (hdiutil, as done locally for Phase 8)
     ↓
-Sparkle-sign the DMG (sign_update, using the Keychain-held private key)
+Sign the DMG and (re)generate appcast.xml in one step
+    (Sparkle's own `generate_appcast` tool: reads the DMG plus the
+    existing appcast.xml, signs the new entry, folds it in)
     ↓
-Generate/update appcast.xml (Sparkle's generate_appcast tool, or hand-written
-    entry: version, signature, download URL, minimum system version)
+Commit the updated appcast.xml to main
     ↓
-Publish: GitHub Release (DMG as an asset) + commit the updated appcast.xml
+Publish: GitHub Release (DMG as an asset)
 ```
 
 No Developer ID signing or notarization step exists in this pipeline —
 see **The free-path tradeoff** above for why that's intentional here.
-`.github/workflows/release.yml` implements exactly this shape.
+`.github/workflows/release.yml` implements exactly this shape, using
+Sparkle's bundled `generate_appcast` binary (found under the resolved
+package's `artifacts/sparkle/Sparkle/bin/`) rather than hand-writing the
+`<item>` XML — it infers the version, signs it with
+`SPARKLE_PRIVATE_KEY`, and merges it into the existing feed.
 
 ### GitHub Releases + appcast hosting
 
@@ -1878,17 +1883,18 @@ see **The free-path tradeoff** above for why that's intentional here.
   version tag.
 - `appcast.xml` lives at the repository root and is served at a stable,
   permanent URL: `https://raw.githubusercontent.com/ishanshrestha14/velocity/main/appcast.xml`
-  (this is exactly what `SUFeedURL` points at). Every release updates this
-  file and commits it to `main` — Sparkle re-reads it on every check.
-- GitHub Actions (`.github/workflows/release.yml`) is the intended home for
-  automating all of this from a single tag push; see that file's comments
-  for which secrets it expects and why each step is currently a stub.
+  (this is exactly what `SUFeedURL` points at). Every release regenerates
+  this file and the workflow commits it straight to `main` — Sparkle
+  re-reads it on every check.
+- GitHub Actions (`.github/workflows/release.yml`) automates all of this
+  from a single tag push (`git tag v0.2.0 && git push --tags`); see that
+  file's comments for what it does and the one secret it needs.
 
 ### Required GitHub Actions secrets
 
 | Secret | Used for |
 |---|---|
-| `SPARKLE_PRIVATE_KEY` | Exported EdDSA private key, for `sign_update` |
+| `SPARKLE_PRIVATE_KEY` | Exported EdDSA private key, for `generate_appcast`'s `--ed-key-file` |
 
 This is the only secret the free path needs. It is not hardcoded anywhere
 in this repository — the workflow reads it from `secrets.SPARKLE_PRIVATE_KEY`.
@@ -1897,15 +1903,15 @@ certificate/notarization secrets described in the free-path section above.)
 
 ## What cannot be tested locally
 
-- **A real end-to-end update** — with the placeholder `SUPublicEDKey` and
-  an `appcast.xml` that lists no releases, Sparkle's "Check for Updates…"
-  path is verified to *run* (build, link, invoke, no crash — see
-  `PROGRESS.md`'s Phase 9 entry) but there is nothing for it to find. That
-  needs a real keypair, a real signed release, and a populated appcast —
-  the first real release is also the first real test of the full pipeline.
+- **A real end-to-end update.** `SUPublicEDKey` is now the real public key
+  and `SPARKLE_PRIVATE_KEY` is set in GitHub, but `appcast.xml` still lists
+  no releases — Sparkle's "Check for Updates…" path runs (build, link,
+  invoke, no crash — see `PROGRESS.md`'s Phase 9 entry) but has nothing to
+  find yet. The first real tag push is also the first real test of the
+  full pipeline.
 - **The GitHub Actions workflow itself** — it is written to the pipeline
-  shape above but has not run in CI, since it depends on
-  `SPARKLE_PRIVATE_KEY` existing in the repository's settings.
+  shape above but has not run in CI yet; it will run on the first
+  `git tag v* && git push --tags`.
 - **The Gatekeeper "Open Anyway" step** — not exercisable from this
   environment (it's a GUI prompt on the machine receiving the update), but
   it is the expected, documented behavior of the free path above, not a bug.
