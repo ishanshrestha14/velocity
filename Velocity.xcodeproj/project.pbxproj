@@ -292,7 +292,7 @@
 					"@executable_path/../Frameworks",
 				);
 				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/ishanshrestha14/velocity/main/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY";
+				INFOPLIST_KEY_SUPublicEDKey = "kRaFleW5v2W1W57Xgg4Fe+Ukr6KuTfi9s1CYIN7yDms=";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.local.Velocity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -320,7 +320,7 @@
 					"@executable_path/../Frameworks",
 				);
 				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/ishanshrestha14/velocity/main/appcast.xml";
-				INFOPLIST_KEY_SUPublicEDKey = "REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY";
+				INFOPLIST_KEY_SUPublicEDKey = "kRaFleW5v2W1W57Xgg4Fe+Ukr6KuTfi9s1CYIN7yDms=";
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.local.Velocity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
