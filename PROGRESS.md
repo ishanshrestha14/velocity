@@ -598,13 +598,30 @@ Release `.app` produced a real `sparkle:edSignature`, and the same
 happened for real in CI on the successful run, confirmed by reading the
 published `appcast.xml` back off `main`.
 
-## Post-release: D12
+## Post-release: D3 and D12
 
 Everything from here on ships as one branch + PR per issue, not direct
 commits to `main` — the project has a live release and a real Sparkle
 pipeline now, so a review step earns its keep in a way it didn't pre-1.0.
-(This may land alongside a separate D3 PR opened around the same time —
-if both merge, expect to reconcile two "Post-release" sections into one.)
+
+**D3 (menu-bar accessibility) — closed as a false positive.** Every prior
+check (Phase 7, Phase 8) went through System Events' AppleScript
+scripting bridge, which reported every menu-bar button as an unnamed
+`AXButton` with no `AXTitle`/`AXDescription`, regardless of what
+accessibility modifiers the SwiftUI code applied. This session wrote a
+small Swift probe (`AXUIElementCopyAttributeValue` called directly, no
+AppleScript involved) against the actual running app and found
+`AXDescription` correctly populated for all six buttons — "Quick Log",
+"Open Dashboard", "Scan Repositories", "Settings…", "Check for Updates…",
+"Quit Velocity" — exactly what `.accessibilityLabel(title)` sets, and
+exactly the attribute VoiceOver itself reads. Also directly falsified the
+standing theory that `.accessibilityElement(children: .combine)` (the
+fix that worked for the dashboard's tiles) would matter here: added it,
+rebuilt, re-probed — no change either way, confirming `.accessibilityLabel`
+alone was always sufficient. The real story: System Events' bridge simply
+doesn't surface `AXDescription` for elements inside a `MenuBarExtra(.window)`
+popover. That's a testing-tool limitation, not an app defect — nothing in
+application code needed to change.
 
 **D12 (repository re-locate) — closed.** Added `VelocityStore
 .relocateRepository(id:toPath:)`, which re-validates a new path through
@@ -634,7 +651,7 @@ Known and intentional. Each item names the phase that should pick it up.
 |---|---|---|---|
 | D1 | ~~Opening Settings triggers a save with no edit~~ — **done in Phase 7**: `settings.didSet` now compares `oldValue` first | — | ✅ |
 | D2 | ~~`PersistenceService.export(to:)` had no menu item or save panel~~ — **done in Phase 7** | — | ✅ |
-| D3 | Menu-bar panel's buttons still expose no `AXTitle`/`AXDescription` under System Events, even with an explicit `.accessibilityLabel` (the dashboard's tiles were fixed in Phase 7 via `.accessibilityElement(children: .combine)` — same trick made no difference here; re-confirmed in Phase 8's manual QA pass) | Looks specific to `MenuBarExtra(.window)`'s accessibility bridging rather than fixable from application code. Needs checking with real VoiceOver, not System Events' scripting bridge | post-MVP |
+| D3 | ~~Menu-bar panel's buttons expose no `AXTitle`/`AXDescription` under System Events~~ — **closed, was a false positive**: querying the raw Accessibility API directly (`AXUIElementCopyAttributeValue`, bypassing System Events' AppleScript bridge entirely) shows `AXDescription` correctly populated for every button ("Quick Log", "Open Dashboard", etc.) — exactly the attribute VoiceOver reads. The bridge used for every earlier check simply doesn't surface `AXDescription` for elements inside a `MenuBarExtra(.window)` popover; the app was never actually broken | — | ✅ |
 | D4 | ~~Repository management UI~~ — **done in Phase 3** | — | ✅ |
 | D5 | ~~"Scan Repositories" in the menu bar~~ — **done in Phase 3** | — | ✅ |
 | D6 | ~~"Quick Log" in the menu bar~~ — **done in Phase 4** | — | ✅ |
