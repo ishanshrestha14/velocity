@@ -1,6 +1,6 @@
 # Builds, packages, Sparkle-signs, and publishes a Velocity release.
 #
-# Triggered by pushing a version tag (v0.2.0, etc.) — see README.md §42 for
+# Triggered by pushing a version tag (v0.2.0, etc.) — see PRD.md §42 for
 # the full pipeline this implements, the versioning rule (bump
 # CURRENT_PROJECT_VERSION every release; MARKETING_VERSION should match the
 # tag), and "The free-path tradeoff": Velocity ships ad-hoc signed, with no
@@ -10,7 +10,7 @@
 # back.
 #
 # Requires one repository secret, which does not exist yet:
-#   SPARKLE_PRIVATE_KEY   (exported via generate_keys -x — README.md §42)
+#   SPARKLE_PRIVATE_KEY   (exported via generate_keys -x — PRD.md §42)
 #
 # Until it's added, this workflow fails at the Sparkle-signing step by
 # design — an unsigned update archive must never reach a real appcast.
@@ -106,5 +106,5 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           gh release create "$GITHUB_REF_NAME" "Velocity-$VERSION.dmg" \
             --title "Velocity $VERSION" \
-            --notes "Ad-hoc signed, not notarized — after updating, macOS may require System Settings > Privacy & Security > Open Anyway once. See README.md §42." \
+            --notes "Ad-hoc signed, not notarized — after updating, macOS may require System Settings > Privacy & Security > Open Anyway once. See PRD.md §42." \
             --generate-notes
